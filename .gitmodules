@@ -2,3 +2,7 @@
 	path = .upstream/cursor-plugins
 	url = https://github.com/cursor/plugins.git
 	branch = main
+[submodule ".upstream/git-sync"]
+	path = .upstream/git-sync
+	url = https://github.com/simonthum/git-sync.git
+	branch = master
