@@ -1,0 +1,8 @@
+{
+  "command": "claude",
+  "directory": ".claude",
+  "instructions": ".claude/CLAUDE.md",
+  "skills": ".claude/skills",
+  "mcp": ".claude.json",
+  "format": "json"
+}

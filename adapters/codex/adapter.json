@@ -1,0 +1,8 @@
+{
+  "command": "codex",
+  "directory": ".codex",
+  "instructions": ".codex/AGENTS.md",
+  "skills": "native",
+  "mcp": ".codex/config.toml",
+  "format": "toml"
+}

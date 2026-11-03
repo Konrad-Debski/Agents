@@ -1,5 +1,32 @@
-**/*.tar
-**/*.zip
-**/*.gz
+# Only shared source belongs in this repository. Local state lives outside it.
+/*
+!/AGENTS.md
+!/README.md
+!/.gitignore
+!/.gitmodules
+!/package.json
+!/skills/
+!/mcp/
+!/adapters/
+!/scripts/
+!/docs/
+!/tests/
+!/.upstream/
+
+# Never sync local credentials, caches or generated files, even in source dirs.
+.env
+.env.*
+credentials
+credentials.*
+auth.json
+*.pem
+*.key
+id_rsa
+id_ed25519
+.cache/
 __pycache__/
 *.py[cod]
+*.log
+*.tar
+*.zip
+*.gz

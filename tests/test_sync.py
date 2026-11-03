@@ -4,11 +4,13 @@ Run with: python3 -m unittest discover -s tests -v
 """
 
 import fcntl
+import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import tomllib
 import unittest
 
 
@@ -18,11 +20,13 @@ GIT = shutil.which("git")
 
 class SyncTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="agent-skills-sync-")
+        self.temp = tempfile.TemporaryDirectory(prefix="agents-sync-")
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
         self.stubs = self.base / "bin"
         self.stubs.mkdir()
+        self.home = self.base / "home"
+        self.home.mkdir()
         self.env = dict(
             os.environ,
             GIT_CONFIG_GLOBAL="/dev/null",
@@ -31,6 +35,8 @@ class SyncTests(unittest.TestCase):
             GIT_CONFIG_KEY_0="protocol.file.allow",
             GIT_CONFIG_VALUE_0="always",
             PATH=str(self.stubs) + os.pathsep + os.environ["PATH"],
+            HOME=str(self.home),
+            XDG_STATE_HOME=str(self.base / "state"),
             XDG_CONFIG_HOME=str(self.base / "config"),
             SYSTEMD_TEST_LOG=str(self.base / "systemd.log"),
         )
@@ -39,6 +45,9 @@ class SyncTests(unittest.TestCase):
             stub.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$SYSTEMD_TEST_LOG"\n')
             stub.chmod(0o755)
 
+        local = self.base / "config/agents/local.json"
+        local.parent.mkdir(parents=True)
+        local.write_text('{"harnesses": []}')
         self.upstream = self.new_remote("git-sync", "master")
         (self.upstream / "git-sync").write_bytes(
             (ROOT / ".upstream/git-sync/git-sync").read_bytes()
@@ -52,8 +61,13 @@ class SyncTests(unittest.TestCase):
 
         self.seed = self.new_remote("skills", "main")
         shutil.copytree(ROOT / "scripts", self.seed / "scripts")
-        (self.seed / "skill.md").write_text("Original skill\n")
-        (self.seed / "remove.md").write_text("Remove later\n")
+        for directory in ("adapters", "mcp"):
+            shutil.copytree(ROOT / directory, self.seed / directory)
+        shutil.copy(ROOT / ".gitignore", self.seed)
+        shutil.copy(ROOT / "AGENTS.md", self.seed)
+        (self.seed / "skills").mkdir()
+        (self.seed / "skills/skill.md").write_text("Original skill\n")
+        (self.seed / "skills/remove.md").write_text("Remove later\n")
         for name, branch, remote in (
             ("git-sync", "master", "git-sync.git"),
             ("cursor-plugins", "main", "vendor.git"),
@@ -123,20 +137,20 @@ class SyncTests(unittest.TestCase):
         self.assertTrue((self.repo / ".upstream/git-sync/git-sync").exists())
         self.install(self.repo)
         units = self.base / "config/systemd/user"
-        self.assertIn("enable --now agent-skills-sync.timer",
+        self.assertIn("enable --now agents-sync.timer",
                       (self.base / "systemd.log").read_text())
         self.assertEqual(self.git(self.repo, "config", "branch.main.syncNewFiles"), "true")
         self.assertEqual(self.git(self.repo, "status", "--porcelain"), "")
         if shutil.which("systemd-analyze"):
             self.run_cmd(self.base, "systemd-analyze", "--user", "verify",
-                         str(units / "agent-skills-sync.service"),
-                         str(units / "agent-skills-sync.timer"))
+                         str(units / "agents-sync.service"),
+                         str(units / "agents-sync.timer"))
 
     def test_local_changes_make_one_commit_and_no_empty_commits(self):
         before = self.git(self.repo, "rev-parse", "HEAD")
-        (self.repo / "skill.md").write_text("Edited skill\n")
-        (self.repo / "new.md").write_text("New skill\n")
-        (self.repo / "remove.md").unlink()
+        (self.repo / "skills/skill.md").write_text("Edited skill\n")
+        (self.repo / "skills/new.md").write_text("New skill\n")
+        (self.repo / "skills/remove.md").unlink()
         self.sync()
         self.assertEqual(self.git(self.repo, "rev-list", "--count", before + "..HEAD"), "1")
         self.assertEqual(self.git(self.repo, "rev-parse", "HEAD"),
@@ -162,7 +176,7 @@ class SyncTests(unittest.TestCase):
         for repo in others:
             self.install(repo)
         self.advance(self.upstream, "git-sync")
-        (self.repo / "skill.md").write_text("Shared update\n")
+        (self.repo / "skills/skill.md").write_text("Shared update\n")
         self.sync()
         for repo in others:
             self.sync(repo, success=False)
@@ -184,11 +198,11 @@ class SyncTests(unittest.TestCase):
 
     def test_other_branches_and_overlapping_runs_do_not_commit(self):
         before = self.git(self.repo, "rev-parse", "HEAD")
-        (self.repo / "new.md").write_text("Still editing\n")
+        (self.repo / "skills/new.md").write_text("Still editing\n")
         self.git(self.repo, "switch", "-c", "topic")
         self.sync()
         self.git(self.repo, "switch", "main")
-        with (self.repo / ".git/agent-skills-sync/lock").open("w") as lock:
+        with (self.repo / ".git/agents-sync/lock").open("w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.sync()
         self.assertEqual(before, self.git(self.repo, "rev-parse", "HEAD"))
@@ -208,7 +222,7 @@ class SyncTests(unittest.TestCase):
         shim.chmod(0o755)
         result = self.sync(success=False)
         self.assertEqual(result.returncode, 42, result.stdout)
-        self.assertTrue((self.repo / ".git/agent-skills-sync/submodules-pending").exists())
+        self.assertTrue((self.repo / ".git/agents-sync/submodules-pending").exists())
         shim.unlink()
         self.sync()
         self.assertEqual(expected, self.git(self.repo, "rev-parse", "HEAD"))
@@ -218,14 +232,83 @@ class SyncTests(unittest.TestCase):
     def test_conflict_stops_without_overwriting_remote(self):
         other = self.clone("other")
         self.install(other)
-        (self.repo / "skill.md").write_text("Version A\n")
-        (other / "skill.md").write_text("Version B\n")
+        (self.repo / "skills/skill.md").write_text("Version A\n")
+        (other / "skills/skill.md").write_text("Version B\n")
         self.sync()
         remote_before = self.git(self.base / "skills.git", "rev-parse", "main")
         self.assertNotEqual(self.sync(other, success=False).returncode, 0)
         self.assertNotEqual(self.sync(other, success=False).returncode, 0)
         self.assertEqual(remote_before, self.git(self.base / "skills.git", "rev-parse", "main"))
         self.assertTrue((other / ".git/rebase-merge").exists())
+
+    def test_local_files_are_ignored_and_forced_tracking_is_rejected(self):
+        local = self.repo / 'local.json'
+        local.write_text('Machine-specific settings')
+        self.sync()
+        self.assertEqual(self.git(self.repo, 'ls-files', '--', 'local.json'), '')
+        self.git(self.repo, 'add', '-f', 'local.json')
+        result = self.sync(success=False)
+        self.assertIn('Poza zakresem synchronizacji', result.stdout)
+
+    def test_secret_in_shared_source_is_not_committed(self):
+        before = self.git(self.repo, 'rev-parse', 'HEAD')
+        (self.repo / 'skills/leaked.txt').write_text('ghp_' + 'a' * 36)
+        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+
+    def test_deleted_secret_in_unpushed_history_is_not_published(self):
+        remote = self.git(self.base / 'skills.git', 'rev-parse', 'main')
+        path = self.repo / 'skills/leaked.txt'
+        path.write_text('ghp_' + 'b' * 36)
+        self.commit(self.repo, 'accidental secret')
+        path.unlink()
+        self.commit(self.repo, 'remove secret')
+        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.assertEqual(remote, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
+
+    def test_invalid_registry_does_not_commit_or_apply(self):
+        before = self.git(self.repo, 'rev-parse', 'HEAD')
+        (self.repo / 'mcp/servers.json').write_text('{"version": 1, "servers": {"bad": {"transport": "unknown"}}}')
+        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+
+    def test_two_machines_apply_pulled_mcp_configuration(self):
+        other = self.clone('second-machine')
+        environments = []
+        for number, repo in enumerate((self.repo, other)):
+            home = self.base / ('home-' + str(number))
+            home.mkdir()
+            config = home / '.config/agents'
+            config.mkdir(parents=True)
+            (config / 'local.json').write_text('{"harnesses": ["codex"]}')
+            env = dict(self.env, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
+                       XDG_STATE_HOME=str(home / '.local/state'))
+            env.pop('CODEX_HOME', None)
+            self.run_cmd(repo, 'bash', 'scripts/install-sync.sh', env=env)
+            environments.append(env)
+        registry = self.repo / 'mcp/servers.json'
+        data = json.loads(registry.read_text())
+        data['servers']['shared'] = {'transport': 'http', 'url': 'https://example.com/shared'}
+        registry.write_text(json.dumps(data))
+        for repo, env in zip((self.repo, other), environments):
+            self.sync(repo, env=env)
+            path = Path(env['HOME']) / '.codex/config.toml'
+            self.assertEqual(tomllib.loads(path.read_text())['mcp_servers']['shared']['url'],
+                             'https://example.com/shared')
+
+    def test_invalid_pulled_registry_keeps_previous_mcp_configuration(self):
+        local = self.base / 'config/agents/local.json'
+        local.write_text('{"harnesses": ["codex"]}')
+        env = dict(self.env)
+        env.pop('CODEX_HOME', None)
+        self.run_cmd(self.repo, 'bash', 'scripts/install-sync.sh', env=env)
+        config = self.home / '.codex/config.toml'
+        before = config.read_bytes()
+        (self.seed / 'mcp/servers.json').write_text('{"version": 100}')
+        self.commit(self.seed, 'invalid remote configuration')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.assertNotEqual(self.sync(env=env, success=False).returncode, 0)
+        self.assertEqual(config.read_bytes(), before)
 
 
 if __name__ == "__main__":
