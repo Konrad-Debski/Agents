@@ -25,6 +25,10 @@ ALLOWED_DIRS = {'skills', 'mcp', 'adapters', 'scripts', 'docs', 'tests', '.upstr
 SECRET_NAME = re.compile(r'(^|/)(\.env(?:\..*)?|credentials(?:\..*)?|auth\.json|id_rsa|id_ed25519|.*\.pem|.*\.key)$', re.I)
 LOCAL_NAME = re.compile(r'(^|/)(?:\.cache|__pycache__)(?:/|$)|\.(?:log|tar|zip|gz|pyc|pyo)$', re.I)
 SECRET_VALUE = re.compile(rb'-----BEGIN (?:[A-Z ]*PRIVATE KEY)-----|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-[A-Za-z0-9_-]{32,})\b')
+MANUAL_INSTRUCTIONS = {
+    'cursor': 'Cursor: w Customize > Rules dodaj: Read and follow ~/.agents/AGENTS.md before every task.',
+    'vscode': 'VS Code: dla harnessu Local dodaj w Chat: Open Customizations > Instructions instrukcję User z treścią: Read and follow ~/.agents/AGENTS.md before every task.',
+}
 
 
 class ConfigError(Exception):
@@ -81,7 +85,7 @@ def registry():
             if key in {'env_vars', 'requires_env'}:
                 require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for v in values), f'{name}: niepoprawna nazwa zmiennej')
         if 'harnesses' in server:
-            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode'}, f'{name}: nieznany harness')
+            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode', 'vscode'}, f'{name}: nieznany harness')
     return data['servers']
 
 
@@ -142,7 +146,7 @@ def convert(server, harness):
         else:
             result['type'] = 'stdio'
             if names:
-                result['env'] = {v: '${env:' + v + '}' if harness == 'cursor' else '${' + v + '}' for v in names}
+                result['env'] = {v: '${env:' + v + '}' if harness in {'cursor', 'vscode'} else '${' + v + '}' for v in names}
     else:
         result = {'url': server['url']}
         headers = server.get('header_env', {})
@@ -152,7 +156,7 @@ def convert(server, harness):
         else:
             result['type'] = 'http'
             if headers:
-                result['headers'] = {k: '${env:' + v + '}' if harness == 'cursor' else '${' + v + '}' for k, v in headers.items()}
+                result['headers'] = {k: '${env:' + v + '}' if harness in {'cursor', 'vscode'} else '${' + v + '}' for k, v in headers.items()}
     return result
 
 
@@ -192,7 +196,7 @@ def parse_jsonc(text):
                 position = len(text) if end < 0 else end
             elif text.startswith('/*', position):
                 end = text.find('*/', position + 2)
-                require(end >= 0, 'OpenCode: niedomknięty komentarz JSONC')
+                require(end >= 0, 'JSONC: niedomknięty komentarz')
                 position = end + 2
             else:
                 break
@@ -201,13 +205,13 @@ def parse_jsonc(text):
         nonlocal position
         skip()
         start = position
-        require(position < len(text), 'OpenCode: niekompletny JSONC')
+        require(position < len(text), 'JSONC: niekompletny dokument')
         opening = text[position]
         if opening not in '{[':
             value, position = decoder.raw_decode(text, position)
-            require(value is None or isinstance(value, (str, int, float, bool)), 'OpenCode: niepoprawny JSONC')
+            require(value is None or isinstance(value, (str, int, float, bool)), 'JSONC: niepoprawna wartość')
             require(not isinstance(value, float) or value not in (float('inf'), float('-inf')) and value == value,
-                    'OpenCode: niepoprawna liczba JSONC')
+                    'JSONC: niepoprawna liczba')
             return JsoncNode(value, start, position)
         closing = '}' if opening == '{' else ']'
         value = {} if opening == '{' else []
@@ -217,11 +221,11 @@ def parse_jsonc(text):
         while position < len(text) and text[position] != closing:
             key_start = position
             if opening == '{':
-                require(text[position] == '"', 'OpenCode: klucz JSONC musi być napisem')
+                require(text[position] == '"', 'JSONC: klucz musi być napisem')
                 key, position = decoder.raw_decode(text, position)
-                require(key not in value, 'OpenCode: powtórzony klucz JSONC')
+                require(key not in value, 'JSONC: powtórzony klucz')
                 skip()
-                require(position < len(text) and text[position] == ':', 'OpenCode: brak dwukropka JSONC')
+                require(position < len(text) and text[position] == ':', 'JSONC: brak dwukropka')
                 position += 1
             node = read()
             if opening == '{':
@@ -236,13 +240,13 @@ def parse_jsonc(text):
                 break
             position += 1
             skip()
-        require(position < len(text) and text[position] == closing, 'OpenCode: niepoprawne zamknięcie JSONC')
+        require(position < len(text) and text[position] == closing, 'JSONC: niepoprawne zamknięcie')
         position += 1
         return JsoncNode(value, start, position, properties)
 
     node = read()
     skip()
-    require(position == len(text) and isinstance(node.value, dict), 'OpenCode: wymagany jeden obiekt JSONC')
+    require(position == len(text) and isinstance(node.value, dict), 'JSONC: wymagany jeden obiekt')
     return node
 
 
@@ -260,7 +264,7 @@ def jsonc_property(text, section, key, value=None, remove=False):
                 nested = {remaining: nested}
             return jsonc_property(text, section[:index], part, nested)
         node = child
-    require(isinstance(node.value, dict), 'OpenCode: mcp musi być obiektem')
+    require(isinstance(node.value, dict), 'JSONC: sekcja musi być obiektem')
     for index, prop in enumerate(node.properties):
         name, start, child, comma = prop
         if name != key:
@@ -297,12 +301,18 @@ def opencode_servers(text):
     return mcp, ('mcp',)
 
 
-def merge_opencode(text, old, desired):
+def vscode_servers(text):
+    servers = parse_jsonc(text).value.get('servers', {})
+    require(isinstance(servers, dict), 'VS Code: servers musi być obiektem')
+    return servers, ('servers',)
+
+
+def merge_jsonc_servers(text, old, desired, read, label):
     text = text if text.strip() else '{}\n'
-    current, section = opencode_servers(text)
+    current, section = read(text)
     for name, value in old.items():
-        require(name in current and current[name] == value, f'OpenCode: ręcznie zmieniony zarządzany serwer {name}')
-    require(not ((set(current) - set(old)) & set(desired)), 'OpenCode: kolizja nazwy MCP')
+        require(name in current and current[name] == value, f'{label}: ręcznie zmieniony zarządzany serwer {name}')
+    require(not ((set(current) - set(old)) & set(desired)), f'{label}: kolizja nazwy MCP')
     for name in old:
         if name not in desired:
             text = jsonc_property(text, section, name, remove=True)
@@ -310,8 +320,12 @@ def merge_opencode(text, old, desired):
         if current.get(name) != value:
             text = jsonc_property(text, section, name, value)
     expected = {key: value for key, value in current.items() if key not in old} | desired
-    require(opencode_servers(text)[0] == expected, 'OpenCode: niepoprawny wynik JSONC')
+    require(read(text)[0] == expected, f'{label}: niepoprawny wynik JSONC')
     return text.encode()
+
+
+def merge_opencode(text, old, desired):
+    return merge_jsonc_servers(text, old, desired, opencode_servers, 'OpenCode')
 
 
 def merge_mcp(path, fmt, old, desired):
@@ -319,6 +333,8 @@ def merge_mcp(path, fmt, old, desired):
     text = path.read_text() if path.exists() else ''
     if fmt == 'opencode':
         return merge_opencode(text, old, desired)
+    if fmt == 'vscode':
+        return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code')
     if fmt == 'toml':
         tomllib.loads(text)
         require(text.count(BEGIN) == text.count(END) <= 1, f'{path}: uszkodzone znaczniki')
@@ -389,6 +405,9 @@ def locations():
 def adapter_directory(name, adapter, home):
     if name == 'opencode':
         return Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'opencode'
+    if name == 'vscode':
+        # Electron places VS Code user data in $XDG_CONFIG_HOME, falling back to ~/.config.
+        return Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'Code/User'
     return home / adapter['directory']
 
 
@@ -438,6 +457,10 @@ def prepare():
             for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
                 if os.environ.get(variable):
                     notices.append(f'OpenCode: {variable} może nadpisać konfigurację globalną; adapter nie zmienia tej dodatkowej warstwy.')
+        elif name == 'vscode':
+            base = adapter_directory(name, adapter, home)
+            config_path = base / 'mcp.json'
+            instruction = None
         else:
             base = home / adapter['directory']
             config_path = home / adapter['mcp']
@@ -445,10 +468,11 @@ def prepare():
         if instruction:
             link(instruction, ROOT / 'AGENTS.md')
         else:
-            notices.append('Cursor: w Customize > Rules dodaj: Read and follow ~/.agents/AGENTS.md before every task.')
+            notices.append(MANUAL_INSTRUCTIONS[name])
         if adapter['skills'] == 'native':
             # In the canonical checkout these are already ordinary repository files.
-            if (home / '.agents/skills').resolve() != (ROOT / 'skills').resolve():
+            canonical = (home / '.agents/skills').resolve() == (ROOT / 'skills').resolve() and not (home / '.agents/skills').is_symlink()
+            if not canonical:
                 link(home / '.agents/skills', ROOT / 'skills')
         else:
             for skill in sorted((ROOT / 'skills').iterdir()):

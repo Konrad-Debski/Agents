@@ -35,7 +35,7 @@ class ApplyTests(unittest.TestCase):
         self.env.pop('CLAUDE_CONFIG_DIR', None)
         for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
             self.env.pop(variable, None)
-        self.local(['codex', 'claude-code', 'cursor', 'opencode'])
+        self.local(['codex', 'claude-code', 'cursor', 'opencode', 'vscode'])
 
     def local(self, harnesses, disabled=None):
         path = self.config / 'agents/local.json'
@@ -83,12 +83,15 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'opencode/skills').exists())
         opencode = self.config / 'opencode/opencode.json'
         opencode_before = opencode.stat().st_mtime_ns
+        vscode = self.config / 'Code/User/mcp.json'
+        vscode_before = vscode.stat().st_mtime_ns
         before = {p: p.stat().st_mtime_ns for p in self.home.rglob('*') if p.is_file()}
         state_before = (self.state / 'agents/managed.json').stat().st_mtime_ns
         self.run_apply()
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in before})
         self.assertEqual(state_before, (self.state / 'agents/managed.json').stat().st_mtime_ns)
         self.assertEqual(opencode_before, opencode.stat().st_mtime_ns)
+        self.assertEqual(vscode_before, vscode.stat().st_mtime_ns)
         for path in (self.state / 'agents/backups').rglob('*'):
             if path.is_file():
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
@@ -366,6 +369,146 @@ class ApplyTests(unittest.TestCase):
                 self.run_apply(success=False)
                 self.assertEqual(path.read_text(), invalid)
                 self.assertFalse((self.config / 'opencode/AGENTS.md').exists())
+
+    def vscode_config(self, content):
+        path = self.config / 'Code/User/mcp.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        return path
+
+    def vscode_servers(self):
+        spec = importlib.util.spec_from_file_location('agents_test', self.repo / 'scripts/agents.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.parse_jsonc((self.config / 'Code/User/mcp.json').read_text()).value['servers']
+
+    def test_vscode_mcp_preserves_personal_servers_inputs_and_comments(self):
+        self.local(['vscode'])
+        personal = '"Google Sheets": {"type": "http", "url": "https://example.com/sheets", "oauth": {"clientId": "client",},},'
+        path = self.vscode_config('''// Personal VS Code settings
+{
+  "inputs": [{"id": "Authorization", "type": "promptString", "password": true,},],
+  "servers": {
+    // Keep personal server comment
+    ''' + personal + '''
+    "personal": {"type": "http", "url": "https://example.com/mcp", "headers": {"Authorization": "${input:Authorization}"},},
+  },
+}
+''')
+        self.run_apply()
+        for preserved in ('// Personal VS Code settings', '"inputs": [{"id": "Authorization"',
+                          '// Keep personal server comment', personal, '"Authorization": "${input:Authorization}"'):
+            self.assertIn(preserved, path.read_text())
+        servers = self.vscode_servers()
+        self.assertEqual(servers['openaiDeveloperDocs'], {'type': 'http', 'url': 'https://developers.openai.com/mcp'})
+        self.assertEqual(servers['context7'], {'type': 'stdio', 'command': 'npx', 'args': ['-y', '@upstash/context7-mcp']})
+        before = path.read_bytes()
+        self.run_apply()
+        self.assertEqual(before, path.read_bytes())
+        self.local([])
+        self.run_apply()
+        self.assertEqual(set(self.vscode_servers()), {'personal', 'Google Sheets'})
+        for preserved in ('// Personal VS Code settings', '// Keep personal server comment', personal):
+            self.assertIn(preserved, path.read_text())
+        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+
+    def test_vscode_uses_environment_references_for_secrets(self):
+        self.local(['vscode'])
+        path, data = self.servers()
+        data['servers']['private'] = {'transport': 'http', 'url': 'https://example.com/mcp',
+                                      'header_env': {'X-API-Key': 'PRIVATE_MCP_KEY'}}
+        data['servers']['context7']['env_vars'] = ['PRIVATE_MCP_KEY']
+        path.write_text(json.dumps(data))
+        self.env['PRIVATE_MCP_KEY'] = 'secret-value-only-in-the-process'
+        self.run_apply()
+        servers = self.vscode_servers()
+        self.assertEqual(servers['context7']['env'], {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'})
+        self.assertEqual(servers['private'], {'type': 'http', 'url': 'https://example.com/mcp',
+                                              'headers': {'X-API-Key': '${env:PRIVATE_MCP_KEY}'}})
+        for base in (self.home, self.state, self.config):
+            for file in base.rglob('*'):
+                if file.is_file():
+                    self.assertNotIn(self.env['PRIVATE_MCP_KEY'].encode(), file.read_bytes())
+
+    def test_vscode_creates_configuration_with_manual_instruction_notice(self):
+        self.local(['vscode'])
+        result = self.run_apply()
+        self.assertIn('VS Code: dla harnessu Local', result.stdout)
+        self.assertNotIn('Cursor:', result.stdout)
+        self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
+        self.assertFalse((self.home / '.cursor/mcp.json').exists())
+        self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'openaiDeveloperDocs'})
+
+    def test_native_skills_link_from_another_home_is_stable(self):
+        self.local(['vscode'])
+        self.env['HOME'] = str(self.base / 'other-home')
+        self.run_apply()
+        link = self.base / 'other-home/.agents/skills'
+        self.assertEqual(link.resolve(), self.repo / 'skills')
+        before = link.lstat().st_mtime_ns
+        self.run_apply()
+        self.assertEqual(before, link.lstat().st_mtime_ns)
+        self.assertTrue(link.is_symlink())
+        self.run_apply(action='doctor')
+
+    def test_vscode_agent_plugins_are_not_read_or_modified(self):
+        plugins = self.write('.vscode/agent-plugins/installed.json', '{"plugin": true}')
+        self.local(['vscode'])
+        self.run_apply()
+        self.assertEqual(plugins.read_text(), '{"plugin": true}')
+        self.assertFalse((self.home / '.vscode/skills').exists())
+        self.assertFalse(any(p.is_symlink() for p in (self.home / '.vscode').rglob('*')))
+
+    def test_vscode_name_collision_prevents_all_configuration_writes(self):
+        self.local(['codex', 'vscode'])
+        path = self.vscode_config('{"servers": {"openaiDeveloperDocs": {"type": "http", "url": "https://personal.example/mcp"}}}')
+        before = path.read_bytes()
+        result = self.run_apply(success=False)
+        self.assertIn('VS Code: kolizja nazwy MCP', result.stderr)
+        self.assertEqual(before, path.read_bytes())
+        self.assertFalse((self.home / '.codex/config.toml').exists())
+
+    def test_vscode_detects_managed_edits_before_any_writes(self):
+        self.local(['vscode'])
+        self.run_apply()
+        path = self.config / 'Code/User/mcp.json'
+        path.write_text(path.read_text().replace('https://developers.openai.com/mcp', 'https://hand-edited.example/mcp'))
+        before = path.read_bytes()
+        self.run_apply(success=False)
+        self.assertEqual(before, path.read_bytes())
+
+    def test_vscode_rejects_malformed_jsonc_without_writing_other_harnesses(self):
+        self.local(['codex', 'vscode'])
+        cases = (('{"servers": {/* unfinished}', 'JSONC'),
+                 ('{"servers": 123}', 'VS Code: servers musi być obiektem'),
+                 ('{"servers": {}, "servers": {}}', 'JSONC'))
+        for invalid, message in cases:
+            with self.subTest(invalid=invalid):
+                path = self.vscode_config(invalid)
+                result = self.run_apply(success=False)
+                self.assertIn(message, result.stderr)
+                self.assertEqual(path.read_text(), invalid)
+                self.assertFalse((self.home / '.codex/config.toml').exists())
+
+    def test_vscode_removal_keeps_personal_servers_only(self):
+        self.local(['vscode'])
+        path = self.vscode_config('{"servers":{"personal":{"type":"stdio","command":"custom"}}}')
+        self.run_apply()
+        self.local([])
+        self.run_apply()
+        self.assertEqual(json.loads(path.read_text()), {'servers': {'personal': {'type': 'stdio', 'command': 'custom'}}})
+
+    def test_vscode_autodetection_uses_xdg_directory(self):
+        (self.config / 'Code/User').mkdir(parents=True)
+        (self.config / 'agents/local.json').write_text('{}')
+        # Exclude the actual harness binaries installed on the test host.
+        self.env['PATH'] = ''
+        result = subprocess.run([shutil.which('python3'), str(self.repo / 'scripts/agents.py'), 'apply'],
+                                env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Harnessy: vscode', result.stdout)
+        self.assertIn('openaiDeveloperDocs', (self.config / 'Code/User/mcp.json').read_text())
 
 
 if __name__ == '__main__':

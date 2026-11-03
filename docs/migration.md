@@ -50,6 +50,8 @@ W razie potrzeby utwórz lokalny `~/.config/agents/local.json` z listą harness�
 
 Przy dodawaniu OpenCode do istniejącej instalacji dopisz `opencode` do jawnej listy `harnesses` albo pozostaw automatyczne wykrywanie. Adapter wykorzystuje `${XDG_CONFIG_HOME:-~/.config}/opencode`. Istniejący `AGENTS.md` musi wskazywać wspólny plik lub mieć identyczną treść. Odmienny plik zachowaj w kopii i scal przed wdrożeniem. Sprawdź MCP zarówno w `opencode.json`, jak i `opencode.jsonc`. Nie przenoś katalogów `secrets`, danych sesji ani całej konfiguracji OpenCode do repozytorium. Warstwy wskazane przez `OPENCODE_CONFIG` i `OPENCODE_CONFIG_DIR` pozostają lokalne.
 
+Przy dodawaniu VS Code dopisz `vscode` do jawnej listy `harnesses` albo pozostaw automatyczne wykrywanie. Adapter wykorzystuje `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`. Jeśli ten plik zawiera już własny wpis o nazwie wspólnego MCP, na przykład `openaiDeveloperDocs`, adapter zatrzyma wdrożenie. Porównaj wpis, a następnie zmień jego nazwę albo go usuń. Pliki `~/.vscode/agent-plugins` pozostają poza repozytorium i poza adapterem.
+
 ## Sprawdzenie i włączenie synchronizacji
 
 ```bash

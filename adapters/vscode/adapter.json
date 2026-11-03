@@ -1,0 +1,8 @@
+{
+  "command": "code",
+  "directory": ".config/Code/User",
+  "instructions": "manual",
+  "skills": "native",
+  "mcp": ".config/Code/User/mcp.json",
+  "format": "vscode"
+}
