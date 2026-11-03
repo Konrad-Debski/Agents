@@ -30,7 +30,7 @@ Skrypty korzystają ze standardowej biblioteki Pythona, bez instalacji pakietów
 ## Struktura
 
 - `AGENTS.md` zawiera Twoje globalne instrukcje. Dalsze zmiany tego pliku synchronizują się przez Git.
-- `skills/` zawiera skille. Plik `skills/unslop/SKILL.md` jest symlinkiem do przypiętego submodułu.
+- `skills/` zawiera skille oraz symlink katalogu `unslop` do przypiętego submodułu.
 - `mcp/servers.json` zawiera wspólne definicje serwerów bez sekretów.
 - `adapters/` opisuje integracje z harnessami.
 - `scripts/` zawiera instalację, wdrażanie, synchronizację i diagnostykę.
@@ -142,7 +142,7 @@ Instalator próbuje włączyć działanie systemd po wylogowaniu przez `loginctl
 
 ## Submoduły
 
-`.upstream/git-sync` automatycznie aktualizuje się do najnowszego `master`, zgodnie z dotychczasową polityką. Nie wprowadzaj w nim własnych zmian. `.upstream/cursor-plugins` pozostaje na wersji zapisanej w repozytorium. Katalog `skills/unslop` zawiera symlink `SKILL.md` do pliku w submodule.
+`.upstream/git-sync` automatycznie aktualizuje się do najnowszego `master`, zgodnie z dotychczasową polityką. Nie wprowadzaj w nim własnych zmian. `.upstream/cursor-plugins` pozostaje na wersji zapisanej w repozytorium. `skills/unslop` jest symlinkiem do katalogu skilla w submodule. Dowiązujemy cały katalog, ponieważ Codex pomija symlinki samego pliku `SKILL.md` podczas wykrywania skilli.
 
 Pobranie zapisanych wersji:
 
