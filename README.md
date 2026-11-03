@@ -11,7 +11,7 @@ Jeśli masz już `~/.agents`, najpierw wykonaj [migrację](docs/migration.md). N
 Na nowym komputerze, jako docelowy użytkownik, bez `sudo`:
 
 ```bash
-git clone --recurse-submodules git@github.com:KonradDebski/agent-skills.git ~/.agents
+git clone --recurse-submodules git@github.com:Konrad-Debski/Agents.git ~/.agents
 bash "$HOME/.agents/scripts/install.sh"
 bash "$HOME/.agents/scripts/doctor.sh"
 ```

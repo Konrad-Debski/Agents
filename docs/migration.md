@@ -23,7 +23,7 @@ Zapisz i wyślij potrzebne zmiany przed migracją lub zachowaj je w kopii do rę
 Poniższe polecenia wymagają, aby `~/.agents-next` jeszcze nie istniał:
 
 ```bash
-git clone --recurse-submodules git@github.com:KonradDebski/agent-skills.git ~/.agents-next
+git clone --recurse-submodules git@github.com:Konrad-Debski/Agents.git ~/.agents-next
 backup_dir=$(mktemp -d "$HOME/agents-backup.XXXXXX")
 mv "$HOME/.agents" "$backup_dir/agents"
 mv "$HOME/.agents-next" "$HOME/.agents"
