@@ -1,5 +1,5 @@
 ---
-name: wordpress-audit
+name: wp-audit
 description: Analyze WordPress files and SQL dumps downloaded from a server for signs of infection - modified core files, backdoors, injected scripts, suspicious DB accounts. Use when asked to audit, scan or inspect a WordPress folder or database dump after a hack, or when the user says "sprawdź pliki", "włam", "malware", "zainfekowana strona", "audyt bezpieczeństwa WordPress". Read-only analysis producing a findings report.
 ---
 
