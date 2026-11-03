@@ -311,7 +311,8 @@ def merge_jsonc_servers(text, old, desired, read, label):
     text = text if text.strip() else '{}\n'
     current, section = read(text)
     for name, value in old.items():
-        require(name in current and current[name] == value, f'{label}: ręcznie zmieniony zarządzany serwer {name}')
+        if name in current or name in desired:
+            require(current.get(name) == value, f'{label}: ręcznie zmieniony zarządzany serwer {name}')
     require(not ((set(current) - set(old)) & set(desired)), f'{label}: kolizja nazwy MCP')
     for name in old:
         if name not in desired:
@@ -356,8 +357,9 @@ def merge_mcp(path, fmt, old, desired):
     current = data.get('mcpServers', {})
     require(isinstance(current, dict), f'{path}: mcpServers musi być obiektem')
     for name, value in old.items():
-        require(current.get(name) == value, f'{path}: ręcznie zmieniony zarządzany serwer {name}')
-        del current[name]
+        if name in current or name in desired:
+            require(current.get(name) == value, f'{path}: ręcznie zmieniony zarządzany serwer {name}')
+        current.pop(name, None)
     require(not (set(current) & set(desired)), f'{path}: kolizja nazwy MCP')
     if current or desired or 'mcpServers' in data:
         data['mcpServers'] = {**current, **desired}

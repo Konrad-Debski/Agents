@@ -8,7 +8,8 @@
     },
     "openaiDeveloperDocs": {
       "transport": "http",
-      "url": "https://developers.openai.com/mcp"
+      "url": "https://developers.openai.com/mcp",
+      "harnesses": ["codex"]
     }
   }
 }

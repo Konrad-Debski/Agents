@@ -92,7 +92,7 @@ Klucze API dostarczaj w środowisku uruchamianego harnessu. Zmienne ustawione ty
 
 ## Definicje MCP
 
-Początkowy rejestr obejmuje Context7 przez `npx` oraz publiczny serwer dokumentacji OpenAI. Context7 wymaga lokalnego `npx` i dostępu do sieci. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+Początkowy rejestr obejmuje Context7 przez `npx` oraz publiczny serwer dokumentacji OpenAI. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 wymaga lokalnego `npx` i dostępu do sieci. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
 
 Przykład formatu:
 

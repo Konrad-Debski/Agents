@@ -227,7 +227,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(result['provider'], json.loads(original)['provider'])
         self.assertEqual(result['mcp']['personal'], json.loads(original)['mcp']['personal'])
         self.assertEqual(result['mcp']['context7']['type'], 'local')
-        self.assertEqual(result['mcp']['openaiDeveloperDocs']['type'], 'remote')
+        self.assertNotIn('openaiDeveloperDocs', result['mcp'])
         self.local([])
         self.run_apply()
         self.assertEqual(json.loads(path.read_text()), json.loads(original))
@@ -256,7 +256,7 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'opencode/opencode.json').exists())
         self.local([])
         self.run_apply()
-        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+        self.assertNotIn('context7', path.read_text())
         self.assertIn(personal, path.read_text())
 
     def test_opencode_v2_jsonc_preserves_timeouts_and_personal_servers(self):
@@ -273,7 +273,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(before, path.read_bytes())
         self.local([])
         self.run_apply()
-        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+        self.assertNotIn('context7', path.read_text())
         self.assertIn(timeout, path.read_text())
         self.assertIn(personal, path.read_text())
 
@@ -287,13 +287,16 @@ class ApplyTests(unittest.TestCase):
 
     def test_opencode_removes_managed_entries_in_different_positions(self):
         self.local(['opencode'])
+        servers_path, shared = self.servers()
+        shared['servers']['probe'] = {'transport': 'http', 'url': 'https://example.com/probe'}
+        servers_path.write_text(json.dumps(shared))
         path = self.opencode_config('{"mcp":{"servers":{"personal":{"type":"remote","url":"https://example.com"}}}}')
         self.run_apply()
         data = json.loads(path.read_text())
         servers = data['mcp']['servers']
         # Exercise removal both before and after an unmanaged property.
         data['mcp']['servers'] = {'context7': servers['context7'], 'personal': servers['personal'],
-                                  'openaiDeveloperDocs': servers['openaiDeveloperDocs']}
+                                  'probe': servers['probe']}
         path.write_text(json.dumps(data))
         self.local([])
         self.run_apply()
@@ -316,7 +319,7 @@ class ApplyTests(unittest.TestCase):
         second = self.opencode_config('{/* Keep */ "model":"personal/model"}', 'opencode.jsonc')
         self.run_apply()
         self.assertEqual(set(json.loads(first.read_text())['mcp']), {'personal'})
-        self.assertIn('openaiDeveloperDocs', second.read_text())
+        self.assertIn('context7', second.read_text())
         before = (first.read_bytes(), second.read_bytes())
         self.run_apply()
         self.assertEqual(before, (first.read_bytes(), second.read_bytes()))
@@ -400,7 +403,6 @@ class ApplyTests(unittest.TestCase):
                           '// Keep personal server comment', personal, '"Authorization": "${input:Authorization}"'):
             self.assertIn(preserved, path.read_text())
         servers = self.vscode_servers()
-        self.assertEqual(servers['openaiDeveloperDocs'], {'type': 'http', 'url': 'https://developers.openai.com/mcp'})
         self.assertEqual(servers['context7'], {'type': 'stdio', 'command': 'npx', 'args': ['-y', '@upstash/context7-mcp']})
         before = path.read_bytes()
         self.run_apply()
@@ -410,7 +412,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(set(self.vscode_servers()), {'personal', 'Google Sheets'})
         for preserved in ('// Personal VS Code settings', '// Keep personal server comment', personal):
             self.assertIn(preserved, path.read_text())
-        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+        self.assertNotIn('context7', path.read_text())
 
     def test_vscode_uses_environment_references_for_secrets(self):
         self.local(['vscode'])
@@ -438,7 +440,7 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
-        self.assertEqual(set(self.vscode_servers()), {'context7', 'openaiDeveloperDocs'})
+        self.assertEqual(set(self.vscode_servers()), {'context7'})
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])
@@ -452,6 +454,36 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue(link.is_symlink())
         self.run_apply(action='doctor')
 
+    def test_entry_already_removed_by_hand_does_not_block_its_removal(self):
+        self.local(['vscode'])
+        servers_path, shared = self.servers()
+        shared['servers']['openaiDeveloperDocs']['harnesses'] = ['vscode']
+        servers_path.write_text(json.dumps(shared))
+        self.run_apply()
+        path = self.config / 'Code/User/mcp.json'
+        data = json.loads(path.read_text())
+        del data['servers']['openaiDeveloperDocs']
+        path.write_text(json.dumps(data))
+        shared['servers']['openaiDeveloperDocs']['harnesses'] = ['codex']
+        servers_path.write_text(json.dumps(shared))
+        self.run_apply()
+        self.assertEqual(set(self.vscode_servers()), {'context7'})
+
+    def test_narrowing_server_harnesses_removes_only_managed_entries_elsewhere(self):
+        self.write('.claude.json', '{"mcpServers": {"personal": {"command": "custom"}}}')
+        self.run_apply()
+        path, data = self.servers()
+        data['servers']['openaiDeveloperDocs']['harnesses'] = ['codex']
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
+        self.assertEqual(set(claude), {'personal', 'context7'})
+        self.assertNotIn('openaiDeveloperDocs', json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers'])
+        self.assertNotIn('openaiDeveloperDocs', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
+        self.assertNotIn('openaiDeveloperDocs', self.vscode_servers())
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']
+        self.assertEqual(codex['openaiDeveloperDocs'], {'url': 'https://developers.openai.com/mcp'})
+
     def test_vscode_agent_plugins_are_not_read_or_modified(self):
         plugins = self.write('.vscode/agent-plugins/installed.json', '{"plugin": true}')
         self.local(['vscode'])
@@ -462,7 +494,7 @@ class ApplyTests(unittest.TestCase):
 
     def test_vscode_name_collision_prevents_all_configuration_writes(self):
         self.local(['codex', 'vscode'])
-        path = self.vscode_config('{"servers": {"openaiDeveloperDocs": {"type": "http", "url": "https://personal.example/mcp"}}}')
+        path = self.vscode_config('{"servers": {"context7": {"type": "http", "url": "https://personal.example/mcp"}}}')
         before = path.read_bytes()
         result = self.run_apply(success=False)
         self.assertIn('VS Code: kolizja nazwy MCP', result.stderr)
@@ -473,7 +505,7 @@ class ApplyTests(unittest.TestCase):
         self.local(['vscode'])
         self.run_apply()
         path = self.config / 'Code/User/mcp.json'
-        path.write_text(path.read_text().replace('https://developers.openai.com/mcp', 'https://hand-edited.example/mcp'))
+        path.write_text(path.read_text().replace('"command": "npx"', '"command": "hand-edited"'))
         before = path.read_bytes()
         self.run_apply(success=False)
         self.assertEqual(before, path.read_bytes())
@@ -508,7 +540,7 @@ class ApplyTests(unittest.TestCase):
                                 env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Harnessy: vscode', result.stdout)
-        self.assertIn('openaiDeveloperDocs', (self.config / 'Code/User/mcp.json').read_text())
+        self.assertIn('context7', (self.config / 'Code/User/mcp.json').read_text())
 
 
 if __name__ == '__main__':

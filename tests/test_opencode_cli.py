@@ -24,6 +24,9 @@ class OpenCodeCliTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.fixture.local(['opencode'])
+        path, data = self.fixture.servers()
+        data['servers']['probe'] = {'transport': 'http', 'url': 'https://example.com/probe'}
+        path.write_text(json.dumps(data))
 
     def validate(self, legacy=False, jsonc=False):
         fixture = self.fixture
@@ -55,7 +58,7 @@ class OpenCodeCliTests(unittest.TestCase):
         document = next(entry for entry in documents if Path(entry['path']) == path)
         servers = document['info']['mcp']['servers']
         self.assertEqual(servers['context7']['command'], ['npx', '-y', '@upstash/context7-mcp'])
-        self.assertEqual(servers['openaiDeveloperDocs']['type'], 'remote')
+        self.assertEqual(servers['probe']['type'], 'remote')
         self.assertTrue(all(server['disabled'] for server in servers.values()))
         if legacy:
             self.assertIn('personal', servers)
