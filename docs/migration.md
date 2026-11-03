@@ -48,6 +48,8 @@ Jeśli nazwa wspólnego MCP już istnieje w konfiguracji harnessu, zachowaj kopi
 
 W razie potrzeby utwórz lokalny `~/.config/agents/local.json` z listą harnessów i wyjątków. Dla Cursor dodaj regułę wskazaną w README.
 
+Przy dodawaniu OpenCode do istniejącej instalacji dopisz `opencode` do jawnej listy `harnesses` albo pozostaw automatyczne wykrywanie. Adapter wykorzystuje `${XDG_CONFIG_HOME:-~/.config}/opencode`. Istniejący `AGENTS.md` musi wskazywać wspólny plik lub mieć identyczną treść. Odmienny plik zachowaj w kopii i scal przed wdrożeniem. Sprawdź MCP zarówno w `opencode.json`, jak i `opencode.jsonc`. Nie przenoś katalogów `secrets`, danych sesji ani całej konfiguracji OpenCode do repozytorium. Warstwy wskazane przez `OPENCODE_CONFIG` i `OPENCODE_CONFIG_DIR` pozostają lokalne.
+
 ## Sprawdzenie i włączenie synchronizacji
 
 ```bash

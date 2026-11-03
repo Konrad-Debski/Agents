@@ -33,7 +33,9 @@ class ApplyTests(unittest.TestCase):
                         XDG_STATE_HOME=str(self.state))
         self.env.pop('CODEX_HOME', None)
         self.env.pop('CLAUDE_CONFIG_DIR', None)
-        self.local(['codex', 'claude-code', 'cursor'])
+        for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
+            self.env.pop(variable, None)
+        self.local(['codex', 'claude-code', 'cursor', 'opencode'])
 
     def local(self, harnesses, disabled=None):
         path = self.config / 'agents/local.json'
@@ -64,6 +66,7 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse(self.state.exists())
         self.assertFalse((self.home / '.codex').exists())
         self.assertFalse((self.home / '.claude.json').exists())
+        self.assertFalse((self.config / 'opencode').exists())
 
     def test_all_adapters_preserve_settings_and_repeat_without_writes(self):
         codex = self.write('.codex/config.toml', '# Personal comment\nmodel = "my-model"\n[mcp_servers.personal]\ncommand = "custom"\n')
@@ -76,11 +79,16 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual((self.home / '.codex/AGENTS.md').resolve(), self.repo / 'AGENTS.md')
         self.assertEqual((self.home / '.claude/skills/example').resolve(), self.repo / 'skills/example')
         self.assertFalse((self.home / '.cursor/skills').exists())
+        self.assertEqual((self.config / 'opencode/AGENTS.md').resolve(), self.repo / 'AGENTS.md')
+        self.assertFalse((self.config / 'opencode/skills').exists())
+        opencode = self.config / 'opencode/opencode.json'
+        opencode_before = opencode.stat().st_mtime_ns
         before = {p: p.stat().st_mtime_ns for p in self.home.rglob('*') if p.is_file()}
         state_before = (self.state / 'agents/managed.json').stat().st_mtime_ns
         self.run_apply()
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in before})
         self.assertEqual(state_before, (self.state / 'agents/managed.json').stat().st_mtime_ns)
+        self.assertEqual(opencode_before, opencode.stat().st_mtime_ns)
         for path in (self.state / 'agents/backups').rglob('*'):
             if path.is_file():
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
@@ -146,7 +154,12 @@ class ApplyTests(unittest.TestCase):
         cursor = json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers']
         self.assertEqual(claude['private']['headers'], {'X-API-Key': '${PRIVATE_MCP_KEY}'})
         self.assertEqual(cursor['context7']['env'], {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'})
-        for base in (self.home, self.state):
+        opencode = json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']
+        self.assertEqual(opencode['context7']['command'], ['npx', '-y', '@upstash/context7-mcp'])
+        self.assertEqual(opencode['context7']['environment'], {'PRIVATE_MCP_KEY': '{env:PRIVATE_MCP_KEY}'})
+        self.assertEqual(opencode['private'], {'type': 'remote', 'url': 'https://example.com/mcp',
+                                             'headers': {'X-API-Key': '{env:PRIVATE_MCP_KEY}'}})
+        for base in (self.home, self.state, self.config):
             for file in base.rglob('*'):
                 if file.is_file():
                     self.assertNotIn(self.env['PRIVATE_MCP_KEY'].encode(), file.read_bytes())
@@ -195,6 +208,164 @@ class ApplyTests(unittest.TestCase):
         self.run_apply()
         result = self.run_apply(action='doctor', success=False)
         self.assertIn('MISSING_AGENT_TEST_KEY', result.stdout)
+
+    def opencode_config(self, content, filename='opencode.json'):
+        path = self.config / 'opencode' / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        return path
+
+    def test_opencode_json_preserves_personal_settings_and_mcp(self):
+        self.local(['opencode'])
+        original = '{"provider":{"custom":{"apiKey":"{env:PRIVATE_KEY}"}},"mcp":{"personal":{"type":"remote","url":"https://example.com/personal"}}}'
+        path = self.opencode_config(original)
+        self.run_apply()
+        result = json.loads(path.read_text())
+        self.assertEqual(result['provider'], json.loads(original)['provider'])
+        self.assertEqual(result['mcp']['personal'], json.loads(original)['mcp']['personal'])
+        self.assertEqual(result['mcp']['context7']['type'], 'local')
+        self.assertEqual(result['mcp']['openaiDeveloperDocs']['type'], 'remote')
+        self.local([])
+        self.run_apply()
+        self.assertEqual(json.loads(path.read_text()), json.loads(original))
+        self.assertFalse((self.config / 'opencode/AGENTS.md').is_symlink())
+
+    def test_opencode_jsonc_preserves_comments_trailing_commas_and_strings(self):
+        self.local(['opencode'])
+        personal = '"personal": {"type": "remote", "url": "https://example.com/a//b",},'
+        path = self.opencode_config('''// Keep this header
+{
+  /* Keep provider formatting */ "provider": {"custom": {"apiKey": "{env:PRIVATE_KEY}"},},
+  "mcp": {
+    // Keep personal server comment
+    ''' + personal + '''
+  },
+}
+''', 'opencode.jsonc')
+        self.run_apply()
+        for preserved in ('// Keep this header', '/* Keep provider formatting */',
+                          '// Keep personal server comment', personal,
+                          '"provider": {"custom": {"apiKey": "{env:PRIVATE_KEY}"},},'):
+            self.assertIn(preserved, path.read_text())
+        before = path.read_bytes()
+        self.run_apply()
+        self.assertEqual(before, path.read_bytes())
+        self.assertFalse((self.config / 'opencode/opencode.json').exists())
+        self.local([])
+        self.run_apply()
+        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+        self.assertIn(personal, path.read_text())
+
+    def test_opencode_v2_jsonc_preserves_timeouts_and_personal_servers(self):
+        self.local(['opencode'])
+        personal = '"personal": {"type":"remote", "url":"https://example.com/personal", "disabled":true}'
+        timeout = '"timeout": {"startup": 10000, "catalog": 5000}'
+        path = self.opencode_config('\ufeff{/* Header */ "mcp": {' + timeout +
+                                    ', "servers": {/* Personal comment */ ' + personal + ',}},}', 'opencode.jsonc')
+        self.run_apply()
+        for preserved in ('\ufeff{/* Header */', timeout, personal, '/* Personal comment */'):
+            self.assertIn(preserved, path.read_text())
+        before = path.read_bytes()
+        self.run_apply()
+        self.assertEqual(before, path.read_bytes())
+        self.local([])
+        self.run_apply()
+        self.assertNotIn('openaiDeveloperDocs', path.read_text())
+        self.assertIn(timeout, path.read_text())
+        self.assertIn(personal, path.read_text())
+
+    def test_opencode_v2_collision_in_second_file_is_detected(self):
+        self.local(['opencode'])
+        first = self.opencode_config('{"mcp":{"servers":{"context7":{"type":"local","command":["custom"]}}}}')
+        second = self.opencode_config('{/* Secondary config */}', 'opencode.jsonc')
+        before = (first.read_bytes(), second.read_bytes())
+        self.run_apply(success=False)
+        self.assertEqual(before, (first.read_bytes(), second.read_bytes()))
+
+    def test_opencode_removes_managed_entries_in_different_positions(self):
+        self.local(['opencode'])
+        path = self.opencode_config('{"mcp":{"servers":{"personal":{"type":"remote","url":"https://example.com"}}}}')
+        self.run_apply()
+        data = json.loads(path.read_text())
+        servers = data['mcp']['servers']
+        # Exercise removal both before and after an unmanaged property.
+        data['mcp']['servers'] = {'context7': servers['context7'], 'personal': servers['personal'],
+                                  'openaiDeveloperDocs': servers['openaiDeveloperDocs']}
+        path.write_text(json.dumps(data))
+        self.local([])
+        self.run_apply()
+        self.assertEqual(set(json.loads(path.read_text())['mcp']['servers']), {'personal'})
+
+    def test_opencode_name_collision_in_second_config_prevents_writes(self):
+        self.local(['opencode'])
+        first = self.opencode_config('{"mcp":{"context7":{"type":"remote","url":"https://personal.example/mcp"}}}')
+        second = self.opencode_config('{/* Higher precedence */ "model": "personal/model"}', 'opencode.jsonc')
+        first_before, second_before = first.read_bytes(), second.read_bytes()
+        result = self.run_apply(success=False)
+        self.assertIn('drugim pliku OpenCode', result.stderr)
+        self.assertEqual((first_before, second_before), (first.read_bytes(), second.read_bytes()))
+        self.assertFalse((self.config / 'opencode/AGENTS.md').exists())
+
+    def test_opencode_migrates_owned_entries_when_jsonc_is_created(self):
+        self.local(['opencode'])
+        first = self.opencode_config('{"mcp":{"personal":{"type":"remote","url":"https://example.com/personal"}}}')
+        self.run_apply()
+        second = self.opencode_config('{/* Keep */ "model":"personal/model"}', 'opencode.jsonc')
+        self.run_apply()
+        self.assertEqual(set(json.loads(first.read_text())['mcp']), {'personal'})
+        self.assertIn('openaiDeveloperDocs', second.read_text())
+        before = (first.read_bytes(), second.read_bytes())
+        self.run_apply()
+        self.assertEqual(before, (first.read_bytes(), second.read_bytes()))
+
+    def test_opencode_detects_managed_edits_before_any_writes(self):
+        self.local(['opencode'])
+        self.run_apply()
+        path = self.config / 'opencode/opencode.json'
+        data = json.loads(path.read_text())
+        data['mcp']['servers']['context7']['command'] = ['hand-edited']
+        path.write_text(json.dumps(data))
+        before = path.read_bytes()
+        self.run_apply(success=False)
+        self.assertEqual(before, path.read_bytes())
+
+    def test_opencode_filters_harness_and_disabled_servers(self):
+        self.local(['opencode'], ['context7'])
+        path, data = self.servers()
+        data['servers']['codexOnly'] = {'transport':'http', 'url':'https://example.com/codex', 'harnesses':['codex']}
+        data['servers']['openaiDeveloperDocs']['harnesses'] = ['opencode']
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        self.assertEqual(set(json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']), {'openaiDeveloperDocs'})
+
+    def test_opencode_autodetection_uses_xdg_directory(self):
+        self.opencode_config('{}')
+        local = self.config / 'agents/local.json'
+        local.write_text('{}')
+        # Exclude the actual harness binaries installed on the test host.
+        self.env['PATH'] = ''
+        result = subprocess.run([shutil.which('python3'), str(self.repo / 'scripts/agents.py'), 'apply'],
+                                env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Harnessy: opencode', result.stdout)
+        self.assertTrue((self.config / 'opencode/AGENTS.md').is_symlink())
+
+    def test_opencode_additional_layers_are_reported_without_their_contents(self):
+        self.local(['opencode'])
+        self.env['OPENCODE_CONFIG_CONTENT'] = '{"mcp":{"private":"sensitive-value"}}'
+        result = self.run_apply()
+        self.assertIn('OPENCODE_CONFIG_CONTENT', result.stdout)
+        self.assertNotIn('sensitive-value', result.stdout + result.stderr)
+
+    def test_opencode_rejects_malformed_jsonc_without_writing_instructions(self):
+        self.local(['opencode'])
+        for invalid in ('{"mcp": {/* unfinished}', '{"mcp": {}, "mcp": {}}',
+                        '{"mcp": 123}', '{"mcp": {"x": 1} garbage}', '{"x": NaN}'):
+            with self.subTest(invalid=invalid):
+                path = self.opencode_config(invalid, 'opencode.jsonc')
+                self.run_apply(success=False)
+                self.assertEqual(path.read_text(), invalid)
+                self.assertFalse((self.config / 'opencode/AGENTS.md').exists())
 
 
 if __name__ == '__main__':

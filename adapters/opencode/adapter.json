@@ -1,0 +1,8 @@
+{
+  "command": "opencode",
+  "directory": ".config/opencode",
+  "instructions": "AGENTS.md",
+  "skills": "native",
+  "mcp": "opencode.json",
+  "format": "opencode"
+}

@@ -280,7 +280,7 @@ class SyncTests(unittest.TestCase):
             home.mkdir()
             config = home / '.config/agents'
             config.mkdir(parents=True)
-            (config / 'local.json').write_text('{"harnesses": ["codex"]}')
+            (config / 'local.json').write_text('{"harnesses": ["codex", "opencode"]}')
             env = dict(self.env, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
                        XDG_STATE_HOME=str(home / '.local/state'))
             env.pop('CODEX_HOME', None)
@@ -294,6 +294,9 @@ class SyncTests(unittest.TestCase):
             self.sync(repo, env=env)
             path = Path(env['HOME']) / '.codex/config.toml'
             self.assertEqual(tomllib.loads(path.read_text())['mcp_servers']['shared']['url'],
+                             'https://example.com/shared')
+            opencode = Path(env['XDG_CONFIG_HOME']) / 'opencode/opencode.json'
+            self.assertEqual(json.loads(opencode.read_text())['mcp']['servers']['shared']['url'],
                              'https://example.com/shared')
 
     def test_invalid_pulled_registry_keeps_previous_mcp_configuration(self):

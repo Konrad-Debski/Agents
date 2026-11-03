@@ -81,7 +81,7 @@ def registry():
             if key in {'env_vars', 'requires_env'}:
                 require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for v in values), f'{name}: niepoprawna nazwa zmiennej')
         if 'harnesses' in server:
-            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor'}, f'{name}: nieznany harness')
+            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode'}, f'{name}: nieznany harness')
     return data['servers']
 
 
@@ -123,6 +123,16 @@ def guard(staged=False):
 
 
 def convert(server, harness):
+    if harness == 'opencode':
+        if server['transport'] == 'stdio':
+            result = {'type': 'local', 'command': [server['command'], *server.get('args', [])]}
+            if server.get('env_vars'):
+                result['environment'] = {v: '{env:' + v + '}' for v in server['env_vars']}
+        else:
+            result = {'type': 'remote', 'url': server['url']}
+            if server.get('header_env'):
+                result['headers'] = {k: '{env:' + v + '}' for k, v in server['header_env'].items()}
+        return result
     if server['transport'] == 'stdio':
         result = {'command': server['command'], 'args': server.get('args', [])}
         names = server.get('env_vars', [])
@@ -161,9 +171,154 @@ def toml_block(servers):
     return '\n'.join(lines) + '\n' + END
 
 
+class JsoncNode:
+    def __init__(self, value, start, end, properties=None):
+        self.value, self.start, self.end = value, start, end
+        self.properties = properties or []
+
+
+def parse_jsonc(text):
+    """Parse JSON with comments/trailing commas and retain exact property spans."""
+    decoder = json.JSONDecoder()
+    position = 1 if text.startswith('\ufeff') else 0
+
+    def skip():
+        nonlocal position
+        while position < len(text):
+            if text[position].isspace():
+                position += 1
+            elif text.startswith('//', position):
+                end = text.find('\n', position)
+                position = len(text) if end < 0 else end
+            elif text.startswith('/*', position):
+                end = text.find('*/', position + 2)
+                require(end >= 0, 'OpenCode: niedomknięty komentarz JSONC')
+                position = end + 2
+            else:
+                break
+
+    def read():
+        nonlocal position
+        skip()
+        start = position
+        require(position < len(text), 'OpenCode: niekompletny JSONC')
+        opening = text[position]
+        if opening not in '{[':
+            value, position = decoder.raw_decode(text, position)
+            require(value is None or isinstance(value, (str, int, float, bool)), 'OpenCode: niepoprawny JSONC')
+            require(not isinstance(value, float) or value not in (float('inf'), float('-inf')) and value == value,
+                    'OpenCode: niepoprawna liczba JSONC')
+            return JsoncNode(value, start, position)
+        closing = '}' if opening == '{' else ']'
+        value = {} if opening == '{' else []
+        properties = []
+        position += 1
+        skip()
+        while position < len(text) and text[position] != closing:
+            key_start = position
+            if opening == '{':
+                require(text[position] == '"', 'OpenCode: klucz JSONC musi być napisem')
+                key, position = decoder.raw_decode(text, position)
+                require(key not in value, 'OpenCode: powtórzony klucz JSONC')
+                skip()
+                require(position < len(text) and text[position] == ':', 'OpenCode: brak dwukropka JSONC')
+                position += 1
+            node = read()
+            if opening == '{':
+                value[key] = node.value
+            else:
+                value.append(node.value)
+            skip()
+            comma = position if position < len(text) and text[position] == ',' else None
+            if opening == '{':
+                properties.append((key, key_start, node, comma))
+            if comma is None:
+                break
+            position += 1
+            skip()
+        require(position < len(text) and text[position] == closing, 'OpenCode: niepoprawne zamknięcie JSONC')
+        position += 1
+        return JsoncNode(value, start, position, properties)
+
+    node = read()
+    skip()
+    require(position == len(text) and isinstance(node.value, dict), 'OpenCode: wymagany jeden obiekt JSONC')
+    return node
+
+
+def jsonc_property(text, section, key, value=None, remove=False):
+    root = parse_jsonc(text)
+    section = (section,) if isinstance(section, str) else section or ()
+    node = root
+    for index, part in enumerate(section):
+        child = next((prop[2] for prop in node.properties if prop[0] == part), None)
+        if child is None:
+            if remove:
+                return text
+            nested = {key: value}
+            for remaining in reversed(section[index + 1:]):
+                nested = {remaining: nested}
+            return jsonc_property(text, section[:index], part, nested)
+        node = child
+    require(isinstance(node.value, dict), 'OpenCode: mcp musi być obiektem')
+    for index, prop in enumerate(node.properties):
+        name, start, child, comma = prop
+        if name != key:
+            continue
+        if remove:
+            end = child.end
+            if comma is not None:
+                end = comma + 1
+            elif index:
+                start = node.properties[index - 1][3]
+            return text[:start] + text[end:]
+        indent = '  ' * (len(section) + 1)
+        rendered = json.dumps(value, indent=2, ensure_ascii=False).replace('\n', '\n' + indent)
+        return text[:child.start] + rendered + text[child.end:]
+    if remove:
+        return text
+    indent = '  ' * (len(section) + 1)
+    rendered = json.dumps(value, indent=2, ensure_ascii=False).replace('\n', '\n' + indent)
+    addition = '\n' + indent + json.dumps(key) + ': ' + rendered + (',' if node.properties else '') + '\n'
+    return text[:node.start + 1] + addition + text[node.start + 1:]
+
+
+def opencode_servers(text):
+    mcp = parse_jsonc(text).value.get('mcp', {})
+    require(isinstance(mcp, dict), 'OpenCode: mcp musi być obiektem')
+    # New files use v2; existing nonempty flat maps keep v1 compatibility.
+    native = not mcp or any(key in mcp and not (isinstance(mcp[key], dict) and
+                     ('type' in mcp[key] or 'enabled' in mcp[key])) for key in ('servers', 'timeout'))
+    if native:
+        require(not (set(mcp) - {'servers', 'timeout'}), 'OpenCode: mieszany lub nieznany format mcp')
+        servers = mcp.get('servers', {})
+        require(isinstance(servers, dict), 'OpenCode: mcp.servers musi być obiektem')
+        return servers, ('mcp', 'servers')
+    return mcp, ('mcp',)
+
+
+def merge_opencode(text, old, desired):
+    text = text if text.strip() else '{}\n'
+    current, section = opencode_servers(text)
+    for name, value in old.items():
+        require(name in current and current[name] == value, f'OpenCode: ręcznie zmieniony zarządzany serwer {name}')
+    require(not ((set(current) - set(old)) & set(desired)), 'OpenCode: kolizja nazwy MCP')
+    for name in old:
+        if name not in desired:
+            text = jsonc_property(text, section, name, remove=True)
+    for name, value in desired.items():
+        if current.get(name) != value:
+            text = jsonc_property(text, section, name, value)
+    expected = {key: value for key, value in current.items() if key not in old} | desired
+    require(opencode_servers(text)[0] == expected, 'OpenCode: niepoprawny wynik JSONC')
+    return text.encode()
+
+
 def merge_mcp(path, fmt, old, desired):
     require(not path.is_symlink(), f'{path}: konfiguracja jest symlinkiem; scalenie wymaga zwykłego pliku')
     text = path.read_text() if path.exists() else ''
+    if fmt == 'opencode':
+        return merge_opencode(text, old, desired)
     if fmt == 'toml':
         tomllib.loads(text)
         require(text.count(BEGIN) == text.count(END) <= 1, f'{path}: uszkodzone znaczniki')
@@ -231,13 +386,19 @@ def locations():
     return home, config, state
 
 
+def adapter_directory(name, adapter, home):
+    if name == 'opencode':
+        return Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'opencode'
+    return home / adapter['directory']
+
+
 def prepare():
     home, config, state_dir = locations()
     local = load_json(config / 'local.json', {})
     require(not (set(local) - {'harnesses', 'disabled_servers'}), 'Nieznane pola local.json')
     adapters = {p.parent.name: load_json(p) for p in sorted((ROOT / 'adapters').glob('*/adapter.json'))}
     selected = local.get('harnesses', [name for name, adapter in adapters.items()
-                       if (home / adapter['directory']).exists() or shutil.which(adapter['command'])])
+                       if adapter_directory(name, adapter, home).exists() or shutil.which(adapter['command'])])
     require(isinstance(selected, list) and all(name in adapters for name in selected), 'Nieznany harness w local.json')
     disabled = local.get('disabled_servers', [])
     require(isinstance(disabled, list) and all(isinstance(s, str) for s in disabled), 'disabled_servers musi być listą nazw')
@@ -270,6 +431,13 @@ def prepare():
             base = Path(os.environ.get('CLAUDE_CONFIG_DIR', home / '.claude')).expanduser().absolute()
             config_path = base / '.claude.json' if os.environ.get('CLAUDE_CONFIG_DIR') else home / '.claude.json'
             instruction = base / 'CLAUDE.md'
+        elif name == 'opencode':
+            base = adapter_directory(name, adapter, home)
+            config_path = base / ('opencode.jsonc' if (base / 'opencode.jsonc').exists() else 'opencode.json')
+            instruction = base / adapter['instructions']
+            for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
+                if os.environ.get(variable):
+                    notices.append(f'OpenCode: {variable} może nadpisać konfigurację globalną; adapter nie zmienia tej dodatkowej warstwy.')
         else:
             base = home / adapter['directory']
             config_path = home / adapter['mcp']
@@ -290,6 +458,12 @@ def prepare():
                    if key not in disabled and name in server.get('harnesses', selected)}
         key = str(config_path)
         old = previous['mcp'].get(key, {}).get('servers', {})
+        if name == 'opencode':
+            other = base / ('opencode.json' if config_path.suffix == '.jsonc' else 'opencode.jsonc')
+            if other.exists():
+                owned = previous['mcp'].get(str(other), {}).get('servers', {})
+                remaining, _ = opencode_servers(merge_mcp(other, 'opencode', owned, {}).decode())
+                require(not (set(remaining) & set(desired)), f'{other}: kolizja MCP w drugim pliku OpenCode')
         content = merge_mcp(config_path, adapter['format'], old, desired)
         before = snapshot(config_path)
         if before[0] != 'missing' or desired:
