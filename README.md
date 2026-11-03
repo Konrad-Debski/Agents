@@ -1,95 +1,169 @@
-# Agent skills
+# Agents
 
-Osobista kolekcja skilli dla agentów AI, współdzielona między komputerami.
+Wspólne instrukcje, skille i konfiguracja MCP dla agentów AI. Repozytorium instalujemy w `~/.agents` i synchronizujemy między komputerami przez Git.
 
-## Instalacja przez agenta
+## Instalacja
 
-Skrócone zasady pracy dla agentów zawiera [AGENTS.md](AGENTS.md). Instrukcje instalacji i synchronizacji znajdują się poniżej.
+Wymagania: Linux z systemd użytkownika, Git, Bash, Python 3.11 lub nowszy oraz `flock` z util-linux. Git musi mieć ustawione `user.name` i `user.email`. Pobieranie i wysyłanie do `origin/main`, a także podpisywanie commitów, muszą działać bez interaktywnego logowania.
 
-Po sklonowaniu uruchom jedną komendę z sekcji [Automatyczna synchronizacja](#automatyczna-synchronizacja). Instaluje ona `git-sync` oraz usługę i timer systemd użytkownika.
+Jeśli masz już `~/.agents`, najpierw wykonaj [migrację](docs/migration.md). Nie klonuj repozytorium wewnątrz istniejącego `~/.agents/skills`.
 
-## Skille
+Na nowym komputerze, jako docelowy użytkownik, bez `sudo`:
 
-- [create-pr](create-pr/SKILL.md): tworzenie i scalanie pull requestów przez GitHub CLI.
-- [famicord-sync](famicord-sync/SKILL.md): synchronizacja motywów WordPress między projektami Famicord.
-- [figma](figma/SKILL.md): brief implementacji sekcji WordPress/ACF na podstawie Figmy.
-- [unslop](unslop/SKILL.md): usuwanie charakterystycznych zwrotów AI z tekstu.
-- [wordpress-audit](wordpress-audit/SKILL.md): sprawdzanie plików i bazy WordPress pod kątem infekcji.
-- [wp-update](wp-update/SKILL.md): aktualizacja WordPressa, wtyczek i ACF Pro.
-- [wp-update-list](wp-update-list/SKILL.md): porządkowanie list aktualizacji WordPressa.
+```bash
+git clone --recurse-submodules git@github.com:KonradDebski/agent-skills.git ~/.agents
+bash "$HOME/.agents/scripts/install.sh"
+bash "$HOME/.agents/scripts/doctor.sh"
+```
+
+Instalator wykrywa harnessy po ich katalogach lub programach w `PATH`. Tworzy konfigurację i uruchamia `agents-sync.timer`. Wykonanie komendy ponownie aktualizuje instalację bez duplikatów. Zmiana lokalizacji repozytorium wymaga ponownej instalacji. Przy istniejących kolizjach najpierw scal własne instrukcje lub nadaj lokalnemu MCP inną nazwę. Instalator nie zastępuje odmiennego pliku instrukcji ani obcego symlinku.
+
+Instalacja samej konfiguracji bez systemd:
+
+```bash
+bash "$HOME/.agents/scripts/install.sh" --no-sync --dry-run
+bash "$HOME/.agents/scripts/install.sh" --no-sync
+```
+
+Skrypty korzystają ze standardowej biblioteki Pythona, bez instalacji pakietów. Automatyczny harmonogram obsługuje obecnie Linux. macOS i Windows nie mają instalatora harmonogramu.
+
+## Struktura
+
+- `AGENTS.md` zawiera Twoje globalne instrukcje. Dalsze zmiany tego pliku synchronizują się przez Git.
+- `skills/` zawiera skille. Plik `skills/unslop/SKILL.md` jest symlinkiem do przypiętego submodułu.
+- `mcp/servers.json` zawiera wspólne definicje serwerów bez sekretów.
+- `adapters/` opisuje integracje z harnessami.
+- `scripts/` zawiera instalację, wdrażanie, synchronizację i diagnostykę.
+- `.upstream/` przechowuje zewnętrzne repozytoria.
+- [Zasady utrzymania](docs/maintenance.md) opisują pracę nad tym repozytorium.
+
+## Obsługiwane harnessy
+
+Codex otrzymuje symlink globalnych instrukcji do `~/.codex/AGENTS.md`. Skille odczytuje z `~/.agents/skills`. Adapter aktualizuje oznaczony blok MCP w `~/.codex/config.toml`, zachowując pozostałe ustawienia i komentarze.
+
+Claude Code otrzymuje symlink do `~/.claude/CLAUDE.md` i pojedyncze dowiązania skilli w `~/.claude/skills`. Adapter scala globalne `mcpServers` w `~/.claude.json`, zachowując pozostałe dane. Uwzględniamy także `CODEX_HOME` i `CLAUDE_CONFIG_DIR`, jeśli są ustawione. Przy niestandardowych katalogach wybierz harness jawnie w `local.json` i zapewnij te same zmienne procesowi synchronizacji.
+
+Cursor odczytuje skille z `~/.agents/skills`, a adapter scala MCP w `~/.cursor/mcp.json`. Globalne User Rules ustawia się przez interfejs Cursor. Jednorazowo dodaj w **Customize > Rules**:
+
+```text
+Read and follow ~/.agents/AGENTS.md before every task.
+```
+
+To instrukcja dla modelu, nie natywny import pliku. `doctor.sh` przypomina o niej, ale nie sprawdza ustawień interfejsu. Nie zapisujemy globalnych reguł Cursor do nieudokumentowanego pliku.
+
+T3 korzysta z uruchamianych harnessów. Repozytorium nie modyfikuje wewnętrznej bazy T3 ani jego konektorów. Dostępność MCP w T3 trzeba sprawdzić w nowej sesji danego dostawcy. Analogicznie inne harnessy wymagają własnego adaptera. Zmiany konfiguracji mogą wymagać ponownego uruchomienia agenta. Wspólne pliki nie gwarantują identycznego zachowania modeli ani identycznej obsługi metadanych skilli.
+
+Źródła integracji: [Codex AGENTS.md](https://developers.openai.com/codex/guides/agents-md), [Codex MCP](https://developers.openai.com/codex/mcp), [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Claude Code skills](https://code.claude.com/docs/en/skills), [Cursor rules](https://cursor.com/docs/rules), [Cursor skills](https://cursor.com/docs/skills), [Cursor MCP](https://cursor.com/docs/mcp).
+
+## Ustawienia lokalne i sekrety
+
+Opcjonalny plik `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` pozostaje poza repozytorium:
+
+```json
+{
+  "harnesses": ["codex", "claude-code", "cursor"],
+  "disabled_servers": []
+}
+```
+
+Brak `harnesses` oznacza automatyczne wykrywanie. Pusta lista wyłącza integracje. Usunięcie harnessu z jawnej listy usuwa wyłącznie jego wcześniej zarządzane wpisy i dowiązania. `disabled_servers` pozwala wyłączyć serwer na konkretnej maszynie bez zmiany wspólnej definicji.
+
+Stan własności wpisów, blokada wdrażania i lokalne kopie zapasowe znajdują się w `${XDG_STATE_HOME:-~/.local/state}/agents`. Nie usuwaj `managed.json`, jeśli chcesz nadal automatycznie aktualizować istniejące wpisy. Utrata stanu powoduje wykrycie kolizji zamiast przejęcia obcej konfiguracji. Kopie zapasowe mają uprawnienia `600` i przechowują także zawartość zastępowanych plików lokalnych. Chroń je tak samo jak konfigurację harnessów.
+
+Klucze API dostarczaj w środowisku uruchamianego harnessu. Zmienne ustawione tylko w terminalu mogą nie być dostępne w aplikacji graficznej lub usłudze systemd. Tokeny OAuth zapisuje lokalnie odpowiedni harness. Logowanie wykonujemy oddzielnie na każdym komputerze. Repozytorium nie przenosi sesji logowania, historii rozmów ani danych konektorów.
+
+## Definicje MCP
+
+Początkowy rejestr obejmuje Context7 przez `npx` oraz publiczny serwer dokumentacji OpenAI. Context7 wymaga lokalnego `npx` i dostępu do sieci. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+
+Przykład formatu:
+
+```json
+{
+  "version": 1,
+  "servers": {
+    "local-tool": {
+      "transport": "stdio",
+      "command": "my-mcp-server",
+      "args": ["serve"],
+      "env_vars": ["MY_TOOL_API_KEY"],
+      "requires_env": ["MY_TOOL_API_KEY"]
+    },
+    "remote-tool": {
+      "transport": "http",
+      "url": "https://example.com/mcp",
+      "header_env": {"X-API-Key": "MY_TOOL_API_KEY"},
+      "harnesses": ["codex", "claude-code"]
+    }
+  }
+}
+```
+
+Obsługujemy `stdio` i Streamable HTTP. `env_vars` przekazuje zmienne do procesu, `header_env` wskazuje zmienne z wartościami nagłówków, a `requires_env` dodaje wymagania do diagnostyki. Wygenerowana konfiguracja zawiera odwołania do zmiennych, nigdy odczytane wartości. `harnesses` opcjonalnie ogranicza integrację do wskazanych narzędzi.
+
+Nie umieszczaj sekretów w argumentach, URL ani plikach źródłowych. Wspólny rejestr nie przyjmuje dowolnych pól `env` lub `headers` ze stałymi wartościami. Polecenia powinny być dostępne w `PATH`, bez ścieżek `/home/...`. Zależności MCP instalujesz lokalnie. Jeśli potrzebujesz powtarzalnej wersji paczki, przypnij jej wersję w argumentach polecenia.
+
+## Wdrażanie i diagnostyka
+
+```bash
+bash "$HOME/.agents/scripts/apply.sh" --dry-run
+bash "$HOME/.agents/scripts/apply.sh"
+bash "$HOME/.agents/scripts/doctor.sh"
+```
+
+`--dry-run` nie zapisuje konfiguracji ani stanu. Wdrażanie najpierw sprawdza wszystkie kolizje, następnie zapisuje pliki atomowo i tworzy kopie poprzednich wersji. Obsłużony błąd zapisu powoduje wycofanie wcześniejszych zmian z tego przebiegu. Ręcznie zmienione zarządzane wpisy zatrzymują wdrażanie. Edytuj definicję źródłową zamiast wygenerowanego wpisu.
+
+Nie uruchamiaj wdrażania równocześnie ze zmianą konfiguracji w interfejsie harnessu. Blokada chroni przed drugim procesem `apply`, ale zewnętrzne aplikacje jej nie znają. Nagłe wyłączenie komputera podczas zapisu wielu plików może wymagać odtworzenia ich z kopii zapasowych.
+
+`doctor` sprawdza plan wdrażania, brakujące programy i zmienne środowiskowe, zerwane symlinki oraz stan timera. Nie łączy się z MCP, nie weryfikuje logowania OAuth i nie testuje zachowania modeli.
+
+## Synchronizacja
+
+Pierwszy przebieg następuje około minuty po instalacji, kolejne co 15 minut od zakończenia poprzedniego. Synchronizacja działa wyłącznie na `main`, automatycznie zapisuje także nowe i usunięte pliki źródłowe. Może zapisać trwającą edycję. Do pracy nad zmianami używaj osobnej gałęzi.
+
+`.gitignore` dopuszcza tylko wspólne katalogi. Dodatkowa kontrola obejmuje również pliki już śledzone i lokalne niewysłane commity. Blokuje ścieżki poza zakresem, typowe pliki poświadczeń i rozpoznawane formaty tokenów. Nie zastępuje przeglądu zmian i nie wykrywa wszystkich możliwych sekretów.
+
+Przed synchronizacją sprawdzamy rejestr MCP. Po udanej synchronizacji i aktualizacji submodułów ponownie sprawdzamy źródła oraz wykonujemy `apply`. Konflikt Gita zatrzymuje proces i wymaga ręcznego rozwiązania. Błąd wdrażania nie cofa synchronizacji Git; po usunięciu przyczyny ponów `apply`.
+
+```bash
+systemctl --user status agents-sync.timer
+journalctl --user -u agents-sync.service -n 50 --no-pager
+systemctl --user start agents-sync.service
+```
+
+Wyłączenie:
+
+```bash
+systemctl --user disable --now agents-sync.timer
+systemctl --user stop agents-sync.service
+```
+
+Instalator próbuje włączyć działanie systemd po wylogowaniu przez `loginctl enable-linger`. Jeśli system odmówi, wyświetla polecenie dla administratora. Importuje `PATH` i bieżące `SSH_AUTH_SOCK`. Po zmianie agenta SSH uruchom instalator ponownie. Po restarcie uwierzytelnianie musi być dostępne dla usługi bez pytania o hasło.
 
 ## Submoduły
 
-`.upstream/cursor-plugins` zawiera repozytorium [cursor/plugins](https://github.com/cursor/plugins), śledzące gałąź `main`. Katalog `unslop` jest symlinkiem do skilla w tym submodule.
+`.upstream/git-sync` automatycznie aktualizuje się do najnowszego `master`, zgodnie z dotychczasową polityką. Nie wprowadzaj w nim własnych zmian. `.upstream/cursor-plugins` pozostaje na wersji zapisanej w repozytorium. Katalog `skills/unslop` zawiera symlink `SKILL.md` do pliku w submodule.
 
-`.upstream/git-sync` zawiera repozytorium [simonthum/git-sync](https://github.com/simonthum/git-sync), śledzące gałąź `master`. Instalator i usługa synchronizacji automatycznie aktualizują ten submoduł do najnowszej wersji źródłowej. Usługa zapisuje zmianę jego wskazania w repozytorium skilli.
-
-## Klonowanie
-
-Poniższe polecenie zakłada, że katalog docelowy nie istnieje. Jeśli zawiera już kopię tego repozytorium, skorzystaj z sekcji pobierania zmian. Jeśli zawiera inne skille lub inne repozytorium, zachowaj je, sklonuj to repozytorium do osobnego katalogu i połącz zawartość bez utraty lokalnych plików.
+Pobranie zapisanych wersji:
 
 ```bash
-git clone --recurse-submodules git@github.com:KonradDebski/agent-skills.git ~/.agents/skills
+git -C ~/.agents pull --ff-only
+git -C ~/.agents submodule update --init --recursive
+bash ~/.agents/scripts/apply.sh
 ```
 
-## Automatyczna synchronizacja
-
-Na każdej maszynie z Linuksem wykonaj jako docelowy użytkownik, bez `sudo`:
+Świadoma aktualizacja `unslop`:
 
 ```bash
-bash "$HOME/.agents/skills/scripts/install-sync.sh"
+git -C ~/.agents submodule update --init --remote --checkout -- .upstream/cursor-plugins
 ```
 
-Wymagane są Git, Bash, `flock` z util-linux oraz działający systemd użytkownika. Gałąź `main` musi śledzić `origin/main`. Git musi mieć ustawione `user.name` i `user.email`, a dostęp do repozytorium musi pozwalać na pobieranie i wysyłanie zmian bez interaktywnego logowania. Jeśli korzystasz z podpisywania commitów, klucz także musi być dostępny dla usługi bez pytania o hasło.
+Zmianę wskazania submodułu zapisz w commicie, aby udostępnić ją innym komputerom. Niezapisane zmiany wewnątrz submodułów zatrzymują synchronizację.
 
-Instalator inicjalizuje submoduły, aktualizuje `.upstream/git-sync` do najnowszej wersji z gałęzi `master` i tworzy `agent-skills-sync.service` oraz `agent-skills-sync.timer` w katalogu konfiguracji systemd użytkownika. Włącza uwzględnianie nowych plików oraz wysyłanie do `origin/main`. Lokalny katalog `agent-skills-sync` wewnątrz katalogu Git przechowuje blokadę i stan aktualizacji submodułów.
-
-Tę samą komendę można wykonać ponownie. Pobierze aktualny `git-sync` i odtworzy konfigurację usług. Zmiana ścieżki instalacji repozytorium również wymaga ponownego uruchomienia instalatora.
-
-Pierwsza synchronizacja rusza po około minucie od włączenia timera. Kolejne uruchomienia następują co 15 minut od zakończenia poprzedniej synchronizacji. Usługa automatycznie zapisuje zmodyfikowane, nowe i usunięte pliki, z uwzględnieniem `.gitignore`, pobiera zmiany oraz wysyła lokalne commity. Brak zmian oznacza brak nowego commita. Commit może powstać w trakcie edycji. Na gałęziach innych niż `main` usługa pomija synchronizację.
-
-Przed każdym przebiegiem usługa aktualizuje `.upstream/git-sync` przez `--remote` do najnowszego `master`, a następnie uruchamia tę wersję narzędzia. Nowe wskazanie submodułu zapisuje razem z pozostałymi zmianami. Jeśli upstream się nie zmienił, samo sprawdzenie nie tworzy commita. Po udanej synchronizacji usługa ustawia wszystkie submoduły na wersje zapisane w repozytorium. Dla `.upstream/cursor-plugins` nadal obowiązuje zapisana wersja, bez automatycznego `--remote`.
-
-Niezapisane zmiany wewnątrz submodułu zatrzymują synchronizację. Własne zmiany w takim repozytorium trzeba najpierw zapisać i wysłać do jego zdalnego repozytorium. Nie wprowadzaj własnych commitów w `.upstream/git-sync`, ponieważ automatyczna aktualizacja ustawia go na źródłowy `master`.
-
-Instalator próbuje włączyć pozostawienie systemd użytkownika po wylogowaniu przez `loginctl enable-linger`. Jeśli system odmówi, wyświetli polecenie do wykonania przez administratora. Przy korzystaniu z agenta SSH instalator przekazuje do systemd bieżące `SSH_AUTH_SOCK`. Po zmianie agenta uruchom instalator ponownie. Po restarcie maszyny uwierzytelnianie musi być dostępne także dla sesji działającej w tle.
-
-Stan timera i logi:
+## Testy
 
 ```bash
-systemctl --user status agent-skills-sync.timer
-journalctl --user -u agent-skills-sync.service -n 50 --no-pager
+python3 -m unittest discover -s tests -v
 ```
 
-Natychmiastowa synchronizacja:
-
-```bash
-systemctl --user start agent-skills-sync.service
-```
-
-Wyłączenie automatycznej synchronizacji:
-
-```bash
-systemctl --user disable --now agent-skills-sync.timer
-systemctl --user stop agent-skills-sync.service
-```
-
-Błąd sieci lub konflikt trafi do logów. Timer ponowi próbę w kolejnym terminie, ale konflikt wymaga rozwiązania i zakończenia operacji Git. Nie trzeba ponownie instalować usługi. Po rozwiązaniu problemu można uruchomić ją od razu poleceniem podanym powyżej.
-
-## Pobieranie zmian
-
-Pobranie zmian repozytorium i zapisanej w nim wersji submodułu:
-
-```bash
-cd ~/.agents/skills
-git pull --ff-only &&
-git submodule update --init --recursive
-```
-
-Pobranie najnowszej wersji `unslop` ze źródłowej gałęzi `main`:
-
-```bash
-git submodule update --init --remote --checkout -- .upstream/cursor-plugins
-```
-
-Polecenie wykonaj w katalogu repozytorium. Aby udostępnić tę wersję innym komputerom, zapisz zmianę wskazania submodułu w commicie i wykonaj `git push`.
+Testy używają tymczasowych katalogów domowych, lokalnych zdalnych repozytoriów Git i atrapy systemd. Nie zmieniają działającej konfiguracji użytkownika.

@@ -3,14 +3,14 @@ set -euo pipefail
 
 fail() { printf 'Błąd: %s\n' "$*" >&2; exit 1; }
 
-for dependency in git flock systemctl bash; do
+for dependency in git flock systemctl bash python3; do
     command -v "$dependency" >/dev/null || fail "Brak polecenia $dependency. Zainstaluj je przed uruchomieniem instalatora."
 done
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(git -C "$script_dir/.." rev-parse --show-toplevel)
 git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir)
-state_dir="$git_dir/agent-skills-sync"
+state_dir="$git_dir/agents-sync"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 upstream_script="$repo_dir/.upstream/git-sync/git-sync"
 
@@ -20,6 +20,10 @@ systemctl --user show-environment >/dev/null || fail 'Brak dostępu do systemd u
 [[ $(git -C "$repo_dir" config --get branch.main.remote) == origin ]] || fail 'Gałąź main musi śledzić origin/main.'
 [[ $(git -C "$repo_dir" config --get branch.main.merge) == refs/heads/main ]] || fail 'Gałąź main musi śledzić origin/main.'
 git -C "$repo_dir" var GIT_AUTHOR_IDENT >/dev/null || fail 'Ustaw git config user.name oraz user.email.'
+
+python3 "$repo_dir/scripts/agents.py" validate
+python3 "$repo_dir/scripts/agents.py" guard
+bash "$repo_dir/scripts/apply.sh" --dry-run
 
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=15}"
@@ -43,6 +47,9 @@ git -C "$repo_dir" config --local branch.main.sync true
 git -C "$repo_dir" config --local branch.main.syncNewFiles true
 git -C "$repo_dir" config --local branch.main.syncSkipHooks false
 git -C "$repo_dir" config --local branch.main.pushRemote origin
+printf -v autocommit_command 'bash %q' "$repo_dir/scripts/autocommit.sh"
+git -C "$repo_dir" config --local branch.main.autocommitscript "$autocommit_command"
+bash "$repo_dir/scripts/apply.sh"
 
 # systemd expands percent specifiers and, in ExecStart arguments, dollar signs.
 unit_quote() {
@@ -63,9 +70,9 @@ repo_unit=$(unit_quote "$repo_dir")
 runner_unit=$(unit_quote "$repo_dir/scripts/sync.sh" exec)
 bash_unit=$(unit_quote "$(command -v bash)" exec)
 
-cat >"$unit_dir/agent-skills-sync.service" <<EOF
+cat >"$unit_dir/agents-sync.service" <<EOF
 [Unit]
-Description=Synchronize agent skills with Git
+Description=Synchronize agent configuration with Git
 
 [Service]
 Type=oneshot
@@ -76,15 +83,15 @@ Environment=GCM_INTERACTIVE=never
 TimeoutStartSec=5min
 EOF
 
-cat >"$unit_dir/agent-skills-sync.timer" <<'EOF'
+cat >"$unit_dir/agents-sync.timer" <<'EOF'
 [Unit]
-Description=Synchronize agent skills every 15 minutes
+Description=Synchronize agent configuration every 15 minutes
 
 [Timer]
 OnActiveSec=1min
 OnUnitInactiveSec=15min
 AccuracySec=30s
-Unit=agent-skills-sync.service
+Unit=agents-sync.service
 
 [Install]
 WantedBy=timers.target
@@ -94,8 +101,12 @@ systemctl --user import-environment PATH
 if [[ -n ${SSH_AUTH_SOCK:-} ]]; then
     systemctl --user import-environment SSH_AUTH_SOCK
 fi
+# Retire old units only after configuration has been deployed successfully.
+systemctl --user disable --now agent-skills-sync.timer 2>/dev/null || true
+systemctl --user stop agent-skills-sync.service 2>/dev/null || true
+rm -f -- "$unit_dir/agent-skills-sync.timer" "$unit_dir/agent-skills-sync.service"
 systemctl --user daemon-reload
-systemctl --user enable --now agent-skills-sync.timer
+systemctl --user enable --now agents-sync.timer
 
 if command -v loginctl >/dev/null; then
     if ! loginctl --no-ask-password enable-linger "$(id -un)"; then
@@ -105,4 +116,4 @@ else
     printf 'Brak loginctl. Sprawdź, czy systemd użytkownika działa także po wylogowaniu.\n' >&2
 fi
 
-printf 'Zaktualizowano submoduł git-sync do master i włączono agent-skills-sync.timer.\nPierwsza synchronizacja za około minutę, kolejne co 15 minut po zakończeniu poprzedniej.\nLogi: journalctl --user -u agent-skills-sync.service\n'
+printf 'Zaktualizowano submoduł git-sync do master i włączono agents-sync.timer.\nPierwsza synchronizacja za około minutę, kolejne co 15 minut po zakończeniu poprzedniej.\nLogi: journalctl --user -u agents-sync.service\n'

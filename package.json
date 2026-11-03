@@ -1,18 +1,19 @@
 {
-  "name": "konrad-debski-agent-skills",
-  "version": "1.0.0",
-  "description": "Personal skills for Konrad Debski's agents",
+  "name": "konrad-debski-agents",
+  "version": "2.0.0",
+  "description": "Shared instructions, skills and MCP configuration for AI agents",
   "author": {
     "name": "Konrad Debski"
   },
   "repository": "https://github.com/KonradDebski/agent-skills",
   "skills": [
-    "./create-pr",
-    "./famicord-sync",
-    "./figma",
-    "./unslop",
-    "./wordpress-audit",
-    "./wp-update",
-    "./wp-update-list"
+    "./skills/context7-mcp",
+    "./skills/create-pr",
+    "./skills/famicord-sync",
+    "./skills/figma",
+    "./skills/unslop",
+    "./skills/wp-audit",
+    "./skills/wp-update",
+    "./skills/wp-update-list"
   ]
 }

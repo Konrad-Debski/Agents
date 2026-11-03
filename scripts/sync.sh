@@ -5,7 +5,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(git -C "$script_dir/.." rev-parse --show-toplevel)
 cd -- "$repo_dir"
 git_dir=$(git rev-parse --absolute-git-dir)
-state_dir="$git_dir/agent-skills-sync"
+state_dir="$git_dir/agents-sync"
 upstream_script="$repo_dir/.upstream/git-sync/git-sync"
 
 [[ -d "$state_dir" && -f "$upstream_script" ]] || {
@@ -29,6 +29,9 @@ fi
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=15}"
 export GCM_INTERACTIVE=never
+
+python3 scripts/agents.py guard
+python3 scripts/agents.py validate
 
 # Refuse unfinished Git operations before touching submodules.
 bash "$upstream_script" check
@@ -56,6 +59,9 @@ touch "$pending"
 if bash "$upstream_script"; then
     git submodule update --init --recursive
     rm -f -- "$pending"
+    python3 scripts/agents.py guard
+    python3 scripts/agents.py validate
+    bash scripts/apply.sh
 else
     result=$?
     if [[ $(git rev-parse HEAD) == "$before" ]]; then rm -f -- "$pending"; fi

@@ -1,0 +1,8 @@
+{
+  "command": "cursor",
+  "directory": ".cursor",
+  "instructions": "manual",
+  "skills": "native",
+  "mcp": ".cursor/mcp.json",
+  "format": "json"
+}
