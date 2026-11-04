@@ -57,7 +57,9 @@ class OpenCodeCliTests(unittest.TestCase):
         documents = [entry for entry in json.loads(result.stdout) if entry.get('type') == 'document']
         document = next(entry for entry in documents if Path(entry['path']) == path)
         servers = document['info']['mcp']['servers']
-        self.assertEqual(servers['context7']['command'], ['npx', '-y', '@upstash/context7-mcp'])
+        self.assertEqual(servers['context7']['type'], 'remote')
+        self.assertEqual(servers['context7']['url'], 'https://mcp.context7.com/mcp')
+        self.assertNotIn('command', servers['context7'])
         self.assertEqual(servers['probe']['type'], 'remote')
         self.assertTrue(all(server['disabled'] for server in servers.values()))
         if legacy:

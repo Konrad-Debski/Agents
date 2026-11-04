@@ -80,11 +80,14 @@ Opcjonalny plik `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` pozostaje poza
 ```json
 {
   "harnesses": ["codex", "claude-code", "cursor", "opencode", "vscode"],
-  "disabled_servers": []
+  "disabled_servers": [],
+  "disabled_servers_by_harness": {}
 }
 ```
 
 Brak `harnesses` oznacza automatyczne wykrywanie. Pusta lista wyłącza integracje. Usunięcie harnessu z jawnej listy usuwa wyłącznie jego wcześniej zarządzane wpisy i dowiązania. `disabled_servers` pozwala wyłączyć serwer na konkretnej maszynie bez zmiany wspólnej definicji.
+
+`disabled_servers_by_harness` wyłącza wspólny wpis tylko w wybranych harnessach. Na przykład `{"vscode": ["context7"], "opencode": ["context7"]}` pozwala zachować własne serwery Context7 HTTP z ich autoryzacją, bez dodawania drugiego połączenia. Nie wyłącza osobistych wpisów o innych nazwach. Ręcznie usunięty zarządzany wpis JSON lub JSONC zostanie odtworzony przez `apply`, jeśli nadal wynika z rejestru i ustawień lokalnych.
 
 Stan własności wpisów, blokada wdrażania i lokalne kopie zapasowe znajdują się w `${XDG_STATE_HOME:-~/.local/state}/agents`. Nie usuwaj `managed.json`, jeśli chcesz nadal automatycznie aktualizować istniejące wpisy. Utrata stanu powoduje wykrycie kolizji zamiast przejęcia obcej konfiguracji. Kopie zapasowe mają uprawnienia `600` i przechowują także zawartość zastępowanych plików lokalnych. Chroń je tak samo jak konfigurację harnessów.
 
@@ -92,7 +95,13 @@ Klucze API dostarczaj w środowisku uruchamianego harnessu. Zmienne ustawione ty
 
 ## Definicje MCP
 
-Początkowy rejestr obejmuje Context7 przez `npx` oraz publiczny serwer dokumentacji OpenAI. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 wymaga lokalnego `npx` i dostępu do sieci. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+Rejestr obejmuje zdalny serwer Context7 pod `https://mcp.context7.com/mcp` oraz publiczny serwer dokumentacji OpenAI. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 korzysta ze Streamable HTTP i nie wymaga lokalnego Node.js ani `npx`. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+
+Domyślna konfiguracja Context7 łączy się bez klucza API. Dzięki temu brak zmiennej autoryzacji nie blokuje startu MCP. Klucz pozwala uzyskać [wyższe limity zapytań](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). Własne połączenia z autoryzacją można zachować i wyłączyć wspólny wpis przez `disabled_servers_by_harness`.
+
+Jeśli chcesz wymagać autoryzacji we wspólnej definicji Context7, dodaj `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` i ustaw zmienną `CONTEXT7_AUTHORIZATION` na pełną wartość `Bearer <klucz API Context7>`. Adaptery zapisują odwołania do środowiska, a `doctor` sprawdza obecność zmiennej. Wartość klucza pozostaje poza repozytorium.
+
+Po zmianie rejestru uruchom `bash ~/.agents/scripts/apply.sh`. Adaptery zastąpią zarządzane wpisy Context7 z `npx` konfiguracją HTTP. Osobiste wpisy VS Code, w tym `io.github.upstash/context7` z `${input:Authorization}`, zachowają dotychczasowe ustawienia. Pola `gallery` i `version` nie są potrzebne do połączenia HTTP i nie należą do wspólnego rejestru.
 
 Przykład formatu:
 
