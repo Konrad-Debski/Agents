@@ -1,5 +1,5 @@
 <!-- unslop -->
-Załaduj i użyj skill `~/.agents/skills/unslop/SKILL.md`, gdy odpowiadasz użytkownikowi. Nie informuj bezpośrednio w tekście o jego użyciu.
+Załaduj jednorazowo i użyj skill `~/.agents/skills/unslop/SKILL.md`. Nie informuj bezpośrednio w odpowiedzi o jego użyciu.
 <!-- unslop -->
 
 <!-- context7 -->
