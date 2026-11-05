@@ -35,6 +35,7 @@ class ApplyTests(unittest.TestCase):
         self.env.pop('CLAUDE_CONFIG_DIR', None)
         for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
             self.env.pop(variable, None)
+        self.env['CONTEXT7_AUTHORIZATION'] = 'Bearer test-context7-key'
         self.local(['codex', 'claude-code', 'cursor', 'opencode', 'vscode'])
 
     def local(self, harnesses, disabled=None):
@@ -112,7 +113,7 @@ class ApplyTests(unittest.TestCase):
         self.run_apply()
         path = self.home / '.claude.json'
         data = json.loads(path.read_text())
-        data['mcpServers']['context7']['command'] = 'hand-edited'
+        data['mcpServers']['context7']['url'] = 'https://hand-edited.example/mcp'
         path.write_text(json.dumps(data))
         before = path.read_bytes()
         self.run_apply(success=False)
@@ -121,7 +122,7 @@ class ApplyTests(unittest.TestCase):
     def test_manual_edit_of_managed_toml_block_is_preserved(self):
         self.run_apply()
         path = self.home / '.codex/config.toml'
-        path.write_text(path.read_text().replace('command = "npx"', 'command = "hand-edited"'))
+        path.write_text(path.read_text().replace('https://mcp.context7.com/mcp', 'https://hand-edited.example/mcp'))
         before = path.read_bytes()
         self.run_apply(success=False)
         self.assertEqual(path.read_bytes(), before)
@@ -147,7 +148,8 @@ class ApplyTests(unittest.TestCase):
         path, data = self.servers()
         data['servers']['private'] = {'transport': 'http', 'url': 'https://example.com/mcp',
                                       'header_env': {'X-API-Key': 'PRIVATE_MCP_KEY'}}
-        data['servers']['context7']['env_vars'] = ['PRIVATE_MCP_KEY']
+        data['servers']['localTool'] = {'transport': 'stdio', 'command': 'my-mcp-server',
+                                        'args': ['serve'], 'env_vars': ['PRIVATE_MCP_KEY']}
         path.write_text(json.dumps(data))
         self.env['PRIVATE_MCP_KEY'] = 'secret-value-only-in-the-process'
         self.run_apply()
@@ -156,16 +158,120 @@ class ApplyTests(unittest.TestCase):
         claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
         cursor = json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers']
         self.assertEqual(claude['private']['headers'], {'X-API-Key': '${PRIVATE_MCP_KEY}'})
-        self.assertEqual(cursor['context7']['env'], {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'})
+        self.assertEqual(codex['localTool']['env_vars'], ['PRIVATE_MCP_KEY'])
+        self.assertEqual(claude['localTool']['env'], {'PRIVATE_MCP_KEY': '${PRIVATE_MCP_KEY}'})
+        self.assertEqual(cursor['localTool']['env'], {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'})
         opencode = json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']
-        self.assertEqual(opencode['context7']['command'], ['npx', '-y', '@upstash/context7-mcp'])
-        self.assertEqual(opencode['context7']['environment'], {'PRIVATE_MCP_KEY': '{env:PRIVATE_MCP_KEY}'})
+        self.assertEqual(opencode['localTool']['command'], ['my-mcp-server', 'serve'])
+        self.assertEqual(opencode['localTool']['environment'], {'PRIVATE_MCP_KEY': '{env:PRIVATE_MCP_KEY}'})
         self.assertEqual(opencode['private'], {'type': 'remote', 'url': 'https://example.com/mcp',
                                              'headers': {'X-API-Key': '{env:PRIVATE_MCP_KEY}'}})
         for base in (self.home, self.state, self.config):
             for file in base.rglob('*'):
                 if file.is_file():
                     self.assertNotIn(self.env['PRIVATE_MCP_KEY'].encode(), file.read_bytes())
+                    self.assertNotIn(self.env['CONTEXT7_AUTHORIZATION'].encode(), file.read_bytes())
+
+    def test_context7_migrates_managed_stdio_to_http_for_all_adapters(self):
+        path, data = self.servers()
+        remote = data['servers']['context7']
+        data['servers']['context7'] = {'transport': 'stdio', 'command': 'npx',
+                                       'args': ['-y', '@upstash/context7-mcp']}
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        data['servers']['context7'] = remote
+        path.write_text(json.dumps(data))
+        self.run_apply()
+
+        url = 'https://mcp.context7.com/mcp'
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']['context7']
+        self.assertEqual(codex, {'url': url})
+        for harness, filename in (
+                ('claude-code', '.claude.json'), ('cursor', '.cursor/mcp.json')):
+            with self.subTest(harness=harness):
+                server = json.loads((self.home / filename).read_text())['mcpServers']['context7']
+                self.assertEqual(server, {'type': 'http', 'url': url})
+        self.assertEqual(self.vscode_servers()['context7'], {'type': 'http', 'url': url})
+        opencode = json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']['context7']
+        self.assertEqual(opencode, {'type': 'remote', 'url': url})
+        result = self.run_apply('--dry-run')
+        self.assertNotIn('Plan:', result.stdout)
+
+    def test_context7_works_without_authorization_environment(self):
+        self.env.pop('CONTEXT7_AUTHORIZATION')
+        self.run_apply()
+        result = self.run_apply(action='doctor')
+        self.assertNotIn('CONTEXT7_AUTHORIZATION', result.stdout)
+
+    def test_context7_explicit_authorization_uses_environment_reference(self):
+        path, data = self.servers()
+        data['servers']['context7']['header_env'] = {'Authorization': 'CONTEXT7_AUTHORIZATION'}
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']['context7']
+        self.assertEqual(codex['env_http_headers'], {'Authorization': 'CONTEXT7_AUTHORIZATION'})
+        self.assertEqual(self.vscode_servers()['context7']['headers'],
+                         {'Authorization': '${env:CONTEXT7_AUTHORIZATION}'})
+        self.env.pop('CONTEXT7_AUTHORIZATION')
+        result = self.run_apply(action='doctor', success=False)
+        self.assertIn('context7: brak zmiennej CONTEXT7_AUTHORIZATION', result.stdout)
+
+    def test_deleted_managed_json_entries_are_recreated(self):
+        self.run_apply()
+        for path, section in ((self.home / '.claude.json', ('mcpServers',)),
+                              (self.config / 'Code/User/mcp.json', ('servers',)),
+                              (self.config / 'opencode/opencode.json', ('mcp', 'servers'))):
+            data = json.loads(path.read_text())
+            servers = data
+            for key in section:
+                servers = servers[key]
+            del servers['context7']
+            path.write_text(json.dumps(data))
+        self.run_apply()
+        self.assertIn('context7', self.vscode_servers())
+        self.assertIn('context7', json.loads((self.home / '.claude.json').read_text())['mcpServers'])
+        self.assertIn('context7', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
+
+    def test_harness_specific_disable_preserves_personal_remote_context7(self):
+        self.run_apply()
+        path = self.config / 'Code/User/mcp.json'
+        data = json.loads(path.read_text())
+        del data['servers']['context7']
+        personal = {'type': 'http', 'url': 'https://mcp.context7.com/mcp',
+                    'headers': {'Authorization': '${input:Authorization}'}}
+        data['servers']['io.github.upstash/context7'] = personal
+        path.write_text(json.dumps(data))
+        local = self.config / 'agents/local.json'
+        data = json.loads(local.read_text())
+        data['disabled_servers_by_harness'] = {'vscode': ['context7'], 'opencode': ['context7']}
+        local.write_text(json.dumps(data))
+        self.run_apply()
+        self.assertEqual(self.vscode_servers(), {'io.github.upstash/context7': personal})
+        self.assertNotIn('context7', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
+        self.assertIn('context7', json.loads((self.home / '.claude.json').read_text())['mcpServers'])
+        self.assertIn('context7', tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers'])
+        self.run_apply(action='doctor')
+
+    def test_doctor_skips_requirements_disabled_for_all_selected_harnesses(self):
+        self.local(['vscode'])
+        path, data = self.servers()
+        data['servers']['context7']['requires_env'] = ['MISSING_AGENT_TEST_KEY']
+        path.write_text(json.dumps(data))
+        local = self.config / 'agents/local.json'
+        data = json.loads(local.read_text())
+        data['disabled_servers_by_harness'] = {'vscode': ['context7']}
+        local.write_text(json.dumps(data))
+        self.env.pop('MISSING_AGENT_TEST_KEY', None)
+        self.run_apply()
+        self.run_apply(action='doctor')
+
+    def test_invalid_harness_specific_disable_prevents_writes(self):
+        local = self.config / 'agents/local.json'
+        for invalid in ([], {'unknown': ['context7']}, {'codex': 'context7'}, {'codex': [1]}):
+            with self.subTest(invalid=invalid):
+                local.write_text(json.dumps({'harnesses': ['codex'], 'disabled_servers_by_harness': invalid}))
+                self.run_apply(success=False)
+                self.assertFalse((self.home / '.codex/config.toml').exists())
 
     def test_invalid_registry_prevents_writes(self):
         path, data = self.servers()
@@ -226,7 +332,7 @@ class ApplyTests(unittest.TestCase):
         result = json.loads(path.read_text())
         self.assertEqual(result['provider'], json.loads(original)['provider'])
         self.assertEqual(result['mcp']['personal'], json.loads(original)['mcp']['personal'])
-        self.assertEqual(result['mcp']['context7']['type'], 'local')
+        self.assertEqual(result['mcp']['context7']['type'], 'remote')
         self.assertNotIn('openaiDeveloperDocs', result['mcp'])
         self.local([])
         self.run_apply()
@@ -329,7 +435,7 @@ class ApplyTests(unittest.TestCase):
         self.run_apply()
         path = self.config / 'opencode/opencode.json'
         data = json.loads(path.read_text())
-        data['mcp']['servers']['context7']['command'] = ['hand-edited']
+        data['mcp']['servers']['context7']['url'] = 'https://hand-edited.example/mcp'
         path.write_text(json.dumps(data))
         before = path.read_bytes()
         self.run_apply(success=False)
@@ -403,7 +509,7 @@ class ApplyTests(unittest.TestCase):
                           '// Keep personal server comment', personal, '"Authorization": "${input:Authorization}"'):
             self.assertIn(preserved, path.read_text())
         servers = self.vscode_servers()
-        self.assertEqual(servers['context7'], {'type': 'stdio', 'command': 'npx', 'args': ['-y', '@upstash/context7-mcp']})
+        self.assertEqual(servers['context7'], {'type': 'http', 'url': 'https://mcp.context7.com/mcp'})
         before = path.read_bytes()
         self.run_apply()
         self.assertEqual(before, path.read_bytes())
@@ -419,12 +525,14 @@ class ApplyTests(unittest.TestCase):
         path, data = self.servers()
         data['servers']['private'] = {'transport': 'http', 'url': 'https://example.com/mcp',
                                       'header_env': {'X-API-Key': 'PRIVATE_MCP_KEY'}}
-        data['servers']['context7']['env_vars'] = ['PRIVATE_MCP_KEY']
+        data['servers']['localTool'] = {'transport': 'stdio', 'command': 'my-mcp-server',
+                                        'env_vars': ['PRIVATE_MCP_KEY']}
         path.write_text(json.dumps(data))
         self.env['PRIVATE_MCP_KEY'] = 'secret-value-only-in-the-process'
         self.run_apply()
         servers = self.vscode_servers()
-        self.assertEqual(servers['context7']['env'], {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'})
+        self.assertEqual(servers['localTool'], {'type': 'stdio', 'command': 'my-mcp-server', 'args': [],
+                                                'env': {'PRIVATE_MCP_KEY': '${env:PRIVATE_MCP_KEY}'}})
         self.assertEqual(servers['private'], {'type': 'http', 'url': 'https://example.com/mcp',
                                               'headers': {'X-API-Key': '${env:PRIVATE_MCP_KEY}'}})
         for base in (self.home, self.state, self.config):
@@ -505,7 +613,7 @@ class ApplyTests(unittest.TestCase):
         self.local(['vscode'])
         self.run_apply()
         path = self.config / 'Code/User/mcp.json'
-        path.write_text(path.read_text().replace('"command": "npx"', '"command": "hand-edited"'))
+        path.write_text(path.read_text().replace('https://mcp.context7.com/mcp', 'https://hand-edited.example/mcp'))
         before = path.read_bytes()
         self.run_apply(success=False)
         self.assertEqual(before, path.read_bytes())

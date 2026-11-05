@@ -311,7 +311,7 @@ def merge_jsonc_servers(text, old, desired, read, label):
     text = text if text.strip() else '{}\n'
     current, section = read(text)
     for name, value in old.items():
-        if name in current or name in desired:
+        if name in current:
             require(current.get(name) == value, f'{label}: ręcznie zmieniony zarządzany serwer {name}')
     require(not ((set(current) - set(old)) & set(desired)), f'{label}: kolizja nazwy MCP')
     for name in old:
@@ -357,7 +357,7 @@ def merge_mcp(path, fmt, old, desired):
     current = data.get('mcpServers', {})
     require(isinstance(current, dict), f'{path}: mcpServers musi być obiektem')
     for name, value in old.items():
-        if name in current or name in desired:
+        if name in current:
             require(current.get(name) == value, f'{path}: ręcznie zmieniony zarządzany serwer {name}')
         current.pop(name, None)
     require(not (set(current) & set(desired)), f'{path}: kolizja nazwy MCP')
@@ -416,13 +416,18 @@ def adapter_directory(name, adapter, home):
 def prepare():
     home, config, state_dir = locations()
     local = load_json(config / 'local.json', {})
-    require(not (set(local) - {'harnesses', 'disabled_servers'}), 'Nieznane pola local.json')
+    require(not (set(local) - {'harnesses', 'disabled_servers', 'disabled_servers_by_harness'}), 'Nieznane pola local.json')
     adapters = {p.parent.name: load_json(p) for p in sorted((ROOT / 'adapters').glob('*/adapter.json'))}
     selected = local.get('harnesses', [name for name, adapter in adapters.items()
                        if adapter_directory(name, adapter, home).exists() or shutil.which(adapter['command'])])
     require(isinstance(selected, list) and all(name in adapters for name in selected), 'Nieznany harness w local.json')
     disabled = local.get('disabled_servers', [])
     require(isinstance(disabled, list) and all(isinstance(s, str) for s in disabled), 'disabled_servers musi być listą nazw')
+    scoped_disabled = local.get('disabled_servers_by_harness', {})
+    require(isinstance(scoped_disabled, dict) and all(
+        name in adapters and isinstance(names, list) and all(isinstance(s, str) for s in names)
+        for name, names in scoped_disabled.items()),
+        'disabled_servers_by_harness musi przypisywać harnessom listy nazw')
     servers = registry()
     previous = load_json(state_dir / 'managed.json', {'version': 1, 'mcp': {}, 'links': {}})
     require(previous.get('version') == 1, 'Nieobsługiwany stan adapterów')
@@ -481,7 +486,8 @@ def prepare():
                 if (skill / 'SKILL.md').is_file():
                     link(base / 'skills' / skill.name, skill)
         desired = {key: convert(server, name) for key, server in servers.items()
-                   if key not in disabled and name in server.get('harnesses', selected)}
+                   if key not in disabled and key not in scoped_disabled.get(name, [])
+                   and name in server.get('harnesses', selected)}
         key = str(config_path)
         old = previous['mcp'].get(key, {}).get('servers', {})
         if name == 'opencode':
@@ -559,11 +565,15 @@ def apply(dry_run):
 
 def doctor():
     changes, _, notices, selected, servers, disabled = prepare()
+    _, config, _ = locations()
+    scoped_disabled = load_json(config / 'local.json', {}).get('disabled_servers_by_harness', {})
     problems = []
     print('Repozytorium: ' + str(ROOT))
     print('Harnessy: ' + (', '.join(selected) or 'brak'))
     for name, server in servers.items():
-        if name in disabled or not set(selected).intersection(server.get('harnesses', selected)):
+        if name in disabled or not any(
+                harness in server.get('harnesses', selected)
+                and name not in scoped_disabled.get(harness, []) for harness in selected):
             continue
         if server['transport'] == 'stdio' and not shutil.which(server['command']):
             problems.append(f'{name}: brak programu {server["command"]}')
