@@ -97,6 +97,17 @@ Complete when every publishable target has a confirmed merged PR or an explicit 
 - Classify targets as merged, PR pending, already present, not applicable, partially completed or blocked. Do not declare all projects synchronized while a selected target, required gate or merge is unresolved.
 - Stop after scoped implementation, verification and confirmed publication outcomes. No unrelated cleanup or deployments.
 
+### Changed file directory paths on request
+
+When the user asks for links or paths to changed files, including files to replace through FileZilla, provide paths to their containing directories, omitting the filenames. Use a separate fenced `text` code block for each affected directory in each repository. Put exactly two plain paths inside each block: the absolute local directory path first, then the corresponding server directory path. End both paths with `/`. List a directory only once when multiple changed files share it. Do not use Markdown links, tables, labels or commands inside the blocks.
+
+```text
+/home/konrad-work/Dev/<repository>/<relative-directory-path>/
+/public_html/<domain>/<relative-directory-path>/
+```
+
+Use the actual local paths and the correct website domain, accounting for staging and repository names that differ from domains. Prefer verified server paths. If FTP roots are unknown, state once before the blocks that `/public_html/<domain>/` is an assumed layout. Listing paths does not authorize uploading files or deployment.
+
 ## Website addresses
 
 Use this mapping for website links and live checks. Repository names are not always public domains. Famicord and IR use the staging addresses below for this workflow; label them as staging, not production. These URLs do not establish FTP document roots or authorize deployments.
