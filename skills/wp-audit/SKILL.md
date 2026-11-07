@@ -1,6 +1,6 @@
 ---
 name: wp-audit
-description: Analyze WordPress files and SQL dumps downloaded from a server for signs of infection - modified core files, backdoors, injected scripts, suspicious DB accounts. Use when asked to audit, scan or inspect a WordPress folder or database dump after a hack, or when the user says "sprawdź pliki", "włam", "malware", "zainfekowana strona", "audyt bezpieczeństwa WordPress". Read-only analysis producing a findings report.
+description: Read-only malware audit of downloaded WordPress files and SQL dumps after a suspected hack. Use for infection scans and evidence reports, not routine updates.
 ---
 
 # Analiza pobranych plików WordPress
@@ -46,7 +46,7 @@ Kryterium zakończenia: każdy plik spoza czystej paczki WP i poza znanymi plika
 
 ## Krok 4. Wzorce backdoorów w kodzie
 
-Przeszukać wszystkie pliki PHP (także `wp-content/uploads`, motywy, wtyczki, katalog główny) pod kątem wzorców z sekcji "Wzorce do wyszukania". Używać `grep_search` (regexp, bez rozróżniania wielkości liter) po jednym wzorcu na zapytanie.
+Wczytać [references/patterns.md](references/patterns.md), a następnie przeszukać wszystkie pliki PHP (także `wp-content/uploads`, motywy, wtyczki, katalog główny) pod kątem opisanych wzorców i fałszywych alarmów. Używać `grep_search` (regexp, bez rozróżniania wielkości liter) po jednym wzorcu na zapytanie.
 
 Każdy traf ocenić:
 - fałszywy alarm: kod zgodny z oryginałem z czystej paczki albo jawna logika wtyczki (np. biblioteka z własnym `eval` w nazwie funkcji),
@@ -57,9 +57,9 @@ Kryterium zakończenia: każde trafienie ma ocenę i uzasadnienie, backdoory maj
 
 ## Krok 5. Zrzut bazy danych
 
-Jeśli w kopii jest `.sql` (spakowany - rozpakować do pliku tymczasowego poza katalogiem strony):
+Jeśli w kopii jest `.sql`, wczytać [references/database.md](references/database.md) oraz wzorce SQL w [references/patterns.md](references/patterns.md). Spakowany dump rozpakować do pliku tymczasowego poza katalogiem strony. Następnie:
 - przeszukać dump komendą `grep -n -i -E 'eval|base64_decode|gzinflate|preg_replace|str_replace|iframe|<script'`, wyniki filtrować ręcznie (serializacja PHP w `wp_options` generuje szum),
-- sprawdzić konta i uprawnienia zapytaniami z sekcji "Zapytania SQL",
+- sprawdzić konta i uprawnienia zapytaniami z tej referencji,
 - sprawdzić wpisy `wp_posts` na wstrzyknięty kod w `post_content` i w `post_excerpt`,
 - sprawdzić opcje `siteurl`, `home`, `active_plugins`, `template`, `stylesheet`, `cron` pod kątem obcych wartości,
 - widgety i ustawienia motywu (`widget_*`, `theme_mods_*`) na wstrzyknięte skrypty.
@@ -72,56 +72,6 @@ Kryterium zakończenia: konta, opcje, wpisy i payloady w dumpie sprawdzone, znal
 
 Zakończyć raportem, jedna linia na znalezisko: `ścieżka:linia` + problem + proponowane działanie. Grupować: jądro zmodyfikowane, backdoory, wstrzyknięte JS, pliki obce, baza danych, konta użytkowników. Na końcu podsumowanie liczbą znalezisk w każdej grupie i rekomendowaną kolejnością naprawy: przywrócić jądro z czystej paczki, usunąć backdoory, wyczyścić bazę, skasować podejrzane konta, przekazać listę haseł i saltów do zmiany.
 
-## Referencja
+## Dalsze zadania
 
-### Wzorce do wyszukania
-
-W PHP (krok 4):
-- `base64_decode`, `gzinflate`, `gzuncompress`, `str_rot13`, `rawurldecode` w łańcuchu wywołań,
-- `eval(`, `assert(`, `create_function(`, `preg_replace` z modyfikatorem `/e`,
-- `include "`, `include_once "`, `require` ze zmienną zamiast stałej, `\057` (ukryty ukośnik),
-- `shell_exec`, `system(`, `passthru`, `exec(`, `popen(`,
-- `base64` jako blob: `[A-Za-z0-9+/]{300,}={0,2}`,
-- `wp_remote_get`, `curl_exec`, `file_get_contents` z obcego hosta, zwłaszcza w połączeniu z `eval` albo `echo`,
-- `add_action('wp_head'` / `add_action('wp_footer'` wstawiające `<script` albo `wp_enqueue_script` z obcego URL,
-- tworzenie użytkownika: `wp_insert_user`, `add_role`, `update_option('admin_email'`,
-- `$_GET`, `$_POST`, `$_REQUEST`, `$_COOKIE` przekazywane wprost do `eval`, `include`, `system`.
-
-W dumpie SQL (krok 5): `eval`, `base64_decode`, `gzinflate`, `preg_replace`, `iframe`, `<script`, `JavaScript`, `wp_remote`, `.ru/`, `http://` w polach, które hostować kodu zewnętrznego nie powinny.
-
-### Zapytania SQL
-
-```sql
-SELECT ID, post_title, post_status, post_type
-FROM wp_posts
-WHERE post_content LIKE '%iframe%'
-   OR post_content LIKE '%<script%'
-   OR post_content LIKE '%base64_decode%';
-
-SELECT ID, user_login, user_email, user_registered, user_status
-FROM wp_users;
-
-SELECT user_id, meta_key, meta_value
-FROM wp_usermeta
-WHERE meta_key LIKE '%capabilities%' OR meta_key = 'session_tokens';
-
-SELECT option_name, LEFT(option_value, 200)
-FROM wp_options
-WHERE option_name IN ('siteurl','home','active_plugins','template','stylesheet','cron','admin_email');
-```
-
-Przy dumpie lokalnym te same zapytania zastępuje `grep -n -A2` po nawiasach `INSERT INTO \`wp_users\`` i `INSERT INTO \`wp_options\``.
-
-### Fałszywe alarmy
-
-- WordPress trzyma w jądrze własny base64 (obrazki, certyfikaty) i `preg_replace` bez `/e`. Porównywać z czystą paczką, nie kasować na podstawie samego słowa kluczowego.
-- Wtyczki cache i optymalizacji generują minifikowany JS w `wp-content/cache` i `uploads`. Minifikowany kod to nie dowód infekcji.
-- Nazwy typu `wp-` w `wp-content` to normalne katalogi wtyczek i motywów.
-
-### Awaria strony, nie infekcja
-
-Gdy strona nie działa, a plików nie trzeba skanować: sprawdzić obecność `.maintenance` w katalogu głównym (po nim zostaje biały ekran z komunikatem "Briefly unavailable for scheduled maintenance"), zawartość `wp-content/debug.log`, flagi `WP_DEBUG` i `WP_DEBUG_LOG` w `wp-config.php`, włączone `mu-plugins` i ostatnio zmienione wtyczki.
-
-### Po analizie - hardening
-
-Gdy użytkownik poprosi o zalecenia zabezpieczeń: rotacja haseł (FTP, baza, konta WP), zmiana saltów w `wp-config.php`, zmiana adresu logowania (WPS Hide Login), 2FA albo blokada `wp-admin` w `.htaccess`, wtyczka zabezpieczająca, SSL, skan zewnętrzny (VirusTotal, Google Transparency Report, securityscan.getastra.com).
+Gdy użytkownik prosi o diagnostykę awarii bez skanowania lub zalecenia zabezpieczeń po analizie, wczytać odpowiednią sekcję [references/follow-up.md](references/follow-up.md). Sam raport nie upoważnia do naprawy.

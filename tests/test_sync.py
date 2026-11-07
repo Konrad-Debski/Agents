@@ -159,6 +159,41 @@ class SyncTests(unittest.TestCase):
         self.sync()
         self.assertEqual(after, self.git(self.repo, "rev-parse", "HEAD"))
 
+    def test_sync_refreshes_claude_skills_from_remote_and_preserves_personal_skills(self):
+        local = self.base / "config/agents/local.json"
+        local.write_text('{"harnesses": ["claude-code"]}')
+        env = dict(self.env)
+        env.pop('CLAUDE_CONFIG_DIR', None)
+        personal = self.home / '.claude/skills/personal/SKILL.md'
+        personal.parent.mkdir(parents=True)
+        personal.write_text('Personal skill\n')
+        installed = self.home / '.claude/skills/vendor-skill'
+        self.assertFalse(installed.exists())
+
+        source = self.seed / 'skills/vendor-skill'
+        source.symlink_to('../.upstream/cursor-plugins', target_is_directory=True)
+        self.commit(self.seed, 'select a vendor skill')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.sync(env=env)
+        self.assertTrue(installed.is_symlink())
+        self.assertEqual(installed.resolve(), self.repo / '.upstream/cursor-plugins')
+        self.assertEqual((installed / 'SKILL.md').read_text(), 'Original vendor skill\n')
+
+        self.advance(self.vendor, 'SKILL.md')
+        self.git(self.seed, 'submodule', 'update', '--remote', '--checkout', '--',
+                 '.upstream/cursor-plugins')
+        self.commit(self.seed, 'update the pinned vendor skill')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.sync(env=env)
+        self.assertIn('New upstream revision', (installed / 'SKILL.md').read_text())
+
+        source.unlink()
+        self.commit(self.seed, 'deselect the vendor skill')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.sync(env=env)
+        self.assertFalse(installed.is_symlink())
+        self.assertEqual(personal.read_text(), 'Personal skill\n')
+
     def test_self_update_is_published_and_vendor_stays_pinned(self):
         vendor_before = self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD")
         self.advance(self.vendor, "SKILL.md")
