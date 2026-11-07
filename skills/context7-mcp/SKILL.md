@@ -1,6 +1,6 @@
 ---
 name: context7-mcp
-description: Fetch current documentation for library, framework, SDK, API, CLI or cloud-service questions and code that depends on those interfaces. Skip API-independent refactoring and general programming.
+description: Use when a question or implementation depends on current library, framework, SDK, API, CLI or cloud-service documentation. Skip API-independent refactoring and general programming.
 ---
 
 # Current documentation with Context7

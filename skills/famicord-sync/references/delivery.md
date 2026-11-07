@@ -22,7 +22,7 @@ Przygotowałem też plik zip z poprawkami:
 When the user asks for links or paths to changed files, including files to replace through FileZilla, provide paths to their containing directories, omitting the filenames. Use a separate fenced `text` code block for each affected directory in each repository. Put exactly two plain paths inside each block: the absolute local directory path first, then the corresponding server directory path. End both paths with `/`. List a directory only once when multiple changed files share it. Do not use Markdown links, tables, labels or commands inside the blocks.
 
 ```text
-/home/konrad-work/Dev/<repository>/<relative-directory-path>/
+<absolute-local-repository-path>/<relative-directory-path>/
 /public_html/<domain>/<relative-directory-path>/
 ```
 
@@ -30,4 +30,4 @@ Use the actual local paths and the correct website domain, accounting for stagin
 
 ### Crioestaminal ZIP on final link requests
 
-When the user asks for links at the end of a task that changed `crioestaminal.pt`, also create a ZIP with that repository's task changes and provide a clickable download link. This also applies when the user writes "crioesteminal". Include the final validated changed files at their paths relative to the WordPress root, such as `wp-content/themes/starter-empressia/...`, without an enclosing repository folder. Add a short English `readme.txt` at the archive root explaining where to upload the files and which existing files to replace. Exclude unrelated local changes. Store the ZIP in a task-specific folder under `/home/konrad-work/.agents/artifacts/`, creating the folder if needed, and verify its contents before linking it. Record the archive's absolute path in the run record. Do not create an empty package when Crioestaminal has no task changes. Preparing the archive does not authorize uploading it.
+When the user asks for links at the end of a task that changed `crioestaminal.pt`, also create a ZIP with that repository's task changes and provide a clickable download link. This also applies when the user writes "crioesteminal". Include the final validated changed files at their paths relative to the WordPress root, such as `wp-content/themes/starter-empressia/...`, without an enclosing repository folder. Add a short English `readme.txt` at the archive root explaining where to upload the files and which existing files to replace. Exclude unrelated local changes. Store the ZIP in a task-specific folder under `~/.agents/artifacts/`, expanding the current user home, and verify its contents before linking it. Keep generated archives out of Git. Record the archive's absolute path in the run record. Do not create an empty package when Crioestaminal has no task changes. Preparing the archive does not authorize uploading it.

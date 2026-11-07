@@ -1,22 +1,23 @@
-# Wzorce i fałszywe alarmy
+# Indicators and false positives
 
-## Wzorce do wyszukania
+Read before the code scan. Indicators require contextual review and comparison with clean distributions.
 
-W PHP (krok 4):
-- `base64_decode`, `gzinflate`, `gzuncompress`, `str_rot13`, `rawurldecode` w łańcuchu wywołań,
-- `eval(`, `assert(`, `create_function(`, `preg_replace` z modyfikatorem `/e`,
-- `include "`, `include_once "`, `require` ze zmienną zamiast stałej, `\057` (ukryty ukośnik),
-- `shell_exec`, `system(`, `passthru`, `exec(`, `popen(`,
-- `base64` jako blob: `[A-Za-z0-9+/]{300,}={0,2}`,
-- `wp_remote_get`, `curl_exec`, `file_get_contents` z obcego hosta, zwłaszcza w połączeniu z `eval` albo `echo`,
-- `add_action('wp_head'` / `add_action('wp_footer'` wstawiające `<script` albo `wp_enqueue_script` z obcego URL,
-- tworzenie użytkownika: `wp_insert_user`, `add_role`, `update_option('admin_email'`,
-- `$_GET`, `$_POST`, `$_REQUEST`, `$_COOKIE` przekazywane wprost do `eval`, `include`, `system`.
+## PHP indicators
 
-W dumpie SQL (krok 5): `eval`, `base64_decode`, `gzinflate`, `preg_replace`, `iframe`, `<script`, `JavaScript`, `wp_remote`, `.ru/`, `http://` w polach, które hostować kodu zewnętrznego nie powinny.
+- Chained `base64_decode`, `gzinflate`, `gzuncompress`, `str_rot13` or `rawurldecode` calls.
+- `eval(`, `assert(`, `create_function(` or legacy `preg_replace` with `/e`.
+- Variable `include`/`require` targets or encoded path characters such as `\057`.
+- `shell_exec`, `system(`, `passthru`, `exec(` or `popen(` with untrusted inputs.
+- Long encoded blobs, for example `[A-Za-z0-9+/]{300,}={0,2}`.
+- Foreign-host `wp_remote_get`, `curl_exec` or `file_get_contents`, especially followed by execution or output.
+- Unexplained scripts inserted through `wp_head`, `wp_footer` or `wp_enqueue_script`.
+- Unauthorized `wp_insert_user`, `add_role` or admin-email changes.
+- `$_GET`, `$_POST`, `$_REQUEST` or `$_COOKIE` reaching code execution, includes or shell commands.
 
-## Fałszywe alarmy
+## SQL indicators
 
-- WordPress trzyma w jądrze własny base64 (obrazki, certyfikaty) i `preg_replace` bez `/e`. Porównywać z czystą paczką, nie kasować na podstawie samego słowa kluczowego.
-- Wtyczki cache i optymalizacji generują minifikowany JS w `wp-content/cache` i `uploads`. Minifikowany kod to nie dowód infekcji.
-- Nazwy typu `wp-` w `wp-content` to normalne katalogi wtyczek i motywów.
+Search unexpected fields for `eval`, `base64_decode`, `gzinflate`, `preg_replace`, `iframe`, `<script`, `JavaScript`, `wp_remote` and foreign URLs. Domain suffixes or plain HTTP alone are not evidence of infection.
+
+## False positives
+
+WordPress and libraries legitimately contain encoding functions and regex replacements. Cache and optimization plugins generate minified JavaScript in cache/uploads. Ordinary plugin directories use `wp-` names. Compare with originals and explain the actual data flow before classifying a finding.

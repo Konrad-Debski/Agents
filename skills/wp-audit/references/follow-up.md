@@ -1,7 +1,9 @@
-# Awaria strony, nie infekcja
+# Separate follow-up requests
 
-Gdy strona nie działa, a plików nie trzeba skanować: sprawdzić obecność `.maintenance` w katalogu głównym (po nim zostaje biały ekran z komunikatem "Briefly unavailable for scheduled maintenance"), zawartość `wp-content/debug.log`, flagi `WP_DEBUG` i `WP_DEBUG_LOG` w `wp-config.php`, włączone `mu-plugins` i ostatnio zmienione wtyczki.
+## Failure diagnosis without an infection scan
 
-## Po analizie - hardening
+Check `.maintenance`, `wp-content/debug.log`, debug flags, enabled mu-plugins and recently changed plugins. Redact configuration secrets. Keep the outcome separate from malware findings.
 
-Gdy użytkownik poprosi o zalecenia zabezpieczeń: rotacja haseł (FTP, baza, konta WP), zmiana saltów w `wp-config.php`, zmiana adresu logowania (WPS Hide Login), 2FA albo blokada `wp-admin` w `.htaccess`, wtyczka zabezpieczająca, SSL, skan zewnętrzny (VirusTotal, Google Transparency Report, securityscan.getastra.com).
+## Hardening advice after analysis
+
+When requested, recommend rotating affected FTP, database and WordPress credentials and salts, reviewing account access and adding appropriate login protection such as 2FA. Match recommendations to the confirmed compromise and hosting setup. External scans can supplement the local evidence. Advice does not authorize configuration changes, uploads or deployment.

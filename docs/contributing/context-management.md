@@ -1,38 +1,43 @@
-# Zarządzanie kontekstem
+# Organizacja wiedzy dla agentów
 
-Ten dokument dotyczy organizacji wiedzy w `~/.agents`. Wczytuj go przy zmianie globalnych instrukcji, skilli lub dokumentacji. Podsumowanie materiału źródłowego i przyjęte rozwiązania są w [context-design.md](context-design.md).
-
-## Dobór źródeł
-
-1. Z mapy `AGENTS.md` wybierz źródło potrzebne do bieżącego zadania. Przy pracy w innym projekcie uwzględnij też jego własne instrukcje.
-2. W katalogu skilli harnessu sprawdź nazwę i opis. Wczytaj treść tylko pasującego `SKILL.md`. [Indeks skilli](../skills/README.md) jest zapasową mapą, gdy harness nie udostępnia katalogu.
-3. Referencje skilla otwieraj dopiero dla fazy lub wariantu, który ich wymaga. Odnośnik do pliku nie jest poleceniem wczytania wszystkich jego sąsiadów.
+Wczytuj przy zmianie instrukcji, skilli lub dokumentacji w `~/.agents`.
 
 ## Gdzie zapisać wiedzę
 
 | Zawartość | Miejsce |
 | --- | --- |
-| Temat i wskazanie, kiedy oraz gdzie go szukać | Główny `AGENTS.md` |
-| Konwencje, konfiguracja, utrzymanie i objaśnienia | Tematyczny plik w `docs/` |
-| Powtarzalna procedura dla konkretnego zadania | `skills/<nazwa>/SKILL.md` |
-| Opcjonalny wariant, katalog danych lub obszerne przykłady procedury | `skills/<nazwa>/references/` z warunkiem odczytu w `SKILL.md` |
-| Wiedza obowiązująca wyłącznie w jednym projekcie | Dokumentacja lub skille tego projektu |
+| Warunek odczytu i wskazanie źródła | Główny `AGENTS.md` |
+| Konfiguracja, konwencje i utrzymanie | Tematyczny plik w `docs/` |
+| Spójna procedura dla konkretnego zadania | `skills/<nazwa>/SKILL.md` |
+| Szczegóły potrzebne tylko w określonym wariancie | `skills/<nazwa>/references/` |
+| Wspólny protokół kilku procedur | Jedna referencja Markdown wskazana przez wszystkich odbiorców |
+| Wiedza dotycząca jednego projektu | Instrukcje, dokumentacja lub skille tego projektu |
 
-Główny `AGENTS.md` pozostaje mapą. Nie dopisuj do niego kroków narzędzi, przykładów kodu, list kontrolnych ani reguł wymagających wczytania skilla przy każdym zadaniu. Nie zastępuj go odnośnikiem do jednego dokumentu, który agent ma zawsze przeczytać w całości.
+## Treść i warunki odczytu
 
-## Utrzymanie dokumentacji i skilli
+- Główny `AGENTS.md` pozostaje mapą. Każdy odnośnik wskazuje temat i warunek odczytu. Otwieraj wyłącznie źródła potrzebne do zadania.
+- Zachowuj spójne jednostki pracy. Wydzielaj warianty i obszerne referencje, gdy nie są potrzebne przy każdym użyciu. Krótki skill może pozostać jednym plikiem.
+- Każda reguła ma jedno źródło. Współdzielone protokoły odczytuj jako pliki, bez wywoływania ręcznych skilli jako zależności. Zachowuj dotychczasowy tryb wywoływania skilli i wymagane zgody.
+- Opis skilla określa intencję użytkownika i granicę wobec podobnych zadań. Kroki, komendy i format wyniku należą do treści lub referencji.
+- Zachowuj istotne wyjątki środowiska, granice autoryzacji i sprawdzalne kryteria zakończenia. Usuwaj powtórzenia i ogólne porady, które nie zmieniają decyzji agenta.
+- Pisz własne instrukcje wykonawcze i referencje po angielsku, dokumentację użytkownika po polsku. Zachowuj język danych wejściowych oraz wymaganych komunikatów. Nie utrzymuj tłumaczeń tej samej procedury w dwóch miejscach.
 
-- Każda zasada ma jedno źródło. W pozostałych miejscach podaj link i warunek użycia.
-- Opis skilla ma umożliwiać wybór zadania. Szczegóły procedury są w treści, a materiał potrzebny tylko w wybranych fazach w referencjach.
-- Nie przenoś obowiązkowego warunku bezpieczeństwa do opcjonalnej referencji. Zachowaj zasady publikacji, wymagane testy i granice autoryzacji podczas podziału.
-- Rozszerzaj instrukcje po rozpoznaniu konkretnego problemu. Sprawdź najpierw, czy właściwy plik lub skill już istnieje.
-- Wiedzę wspólną zapisuj globalnie, a zależną od jednego projektu lokalnie. Nie instaluj globalnie kolejnych pakietów skilli bez potrzeby.
-- Nie edytuj kopii skilli w `.upstream/`. Zasady aktualizacji źródeł zewnętrznych opisuje [synchronization.md](../operations/synchronization.md).
+## Źródła i utrzymanie
 
-## Ścieżki i ładowanie
+Podstawą redakcji jest [seria For skill creators](https://agentskills.io/skill-creation/best-practices):
 
-Globalny `AGENTS.md` jest udostępniany także przez symlinki poza repozytorium. Jego odnośniki używają `~/.agents/...`, aby agent mógł znaleźć źródła niezależnie od katalogu projektu i nazwy użytkownika. Narzędzie odczytu może wymagać rozwinięcia `~` do katalogu domowego. W `docs/` oraz wewnątrz skilla stosuj odnośniki względem danego pliku.
+- [Quickstart](https://agentskills.io/skill-creation/quickstart): minimalna struktura i odkrywanie skilla.
+- [Best practices](https://agentskills.io/skill-creation/best-practices): wiedza domenowa, zakres i warunkowe referencje.
+- [Optimizing descriptions](https://agentskills.io/skill-creation/optimizing-descriptions): dobór na podstawie intencji i odróżnianie podobnych próśb.
+- [Evaluating skills](https://agentskills.io/skill-creation/evaluating-skills): ocena rezultatów i przebiegu rzeczywistych zadań.
+- [Using scripts](https://agentskills.io/skill-creation/using-scripts): automatyzacja powtarzanej pracy, gdy uzasadnia ją użycie.
 
-Nie dodawaj automatycznych importów całego `docs/` ani wszystkich `SKILL.md`. Treść otwartego pliku pozostaje w kontekście danej rozmowy; podział ogranicza przyszłe odczyty, nie usuwa już wczytanej wiedzy. Nazwy i opisy skilli nadal mogą trafiać do katalogu harnessu. Repozytorium nie kontroluje katalogów dostarczanych przez zewnętrzne pluginy.
+Zmieniaj instrukcje na podstawie rozpoznanego problemu. Samo skrócenie tekstu lub poprawny frontmatter nie dowodzi lepszego działania. Przyszłe oceny powinny uwzględniać zarówno dobór skilla, jak i jakość wyniku. Automatyzację dodawaj dopiero dla powtarzanej pracy.
 
-Obsługa zagnieżdżonych `AGENTS.md`, symlinków i metadanych skilli zależy od harnessu. Nowe wskazówki sprawdzaj w świeżej sesji każdego używanego harnessu. Dokumentację integracji znajdziesz w [integrations.md](../integrations/README.md).
+Źródła zewnętrzne pozostają przypięte i nieedytowane. Ich dobór opisuje [upstream.md](../skills/upstream.md), a zasady aktualizacji [synchronization.md](../operations/synchronization.md).
+
+## Ścieżki
+
+Globalna mapa używa `~/.agents/...`, bo jest udostępniana przez symlinki poza repozytorium. Rozwijaj `~` do bieżącego katalogu domowego. W dokumentach i skillach używaj odnośników względem danego pliku.
+
+Plik już odczytany pozostaje w kontekście rozmowy. Podział ogranicza przyszłe odczyty. Obsługa katalogu skilli, metadanych i odświeżania zależy od [harnessu](../integrations/README.md).

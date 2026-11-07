@@ -28,7 +28,7 @@ Domyślna konfiguracja Context7 łączy się bez klucza API. Dzięki temu brak z
 
 Jeśli chcesz wymagać autoryzacji we wspólnej definicji Context7, dodaj `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` i ustaw zmienną `CONTEXT7_AUTHORIZATION` na pełną wartość `Bearer <klucz API Context7>`. Adaptery zapisują odwołania do środowiska, a `doctor` sprawdza obecność zmiennej. Wartość klucza pozostaje poza repozytorium.
 
-Po zmianie rejestru uruchom `bash ~/.agents/scripts/apply.sh`. Adaptery zastąpią zarządzane wpisy Context7 z `npx` konfiguracją HTTP. Osobiste wpisy VS Code, w tym `io.github.upstash/context7` z `${input:Authorization}`, zachowają dotychczasowe ustawienia. Pola `gallery` i `version` nie są potrzebne do połączenia HTTP i nie należą do wspólnego rejestru.
+Po zmianie rejestru uruchom `bash ~/.agents/scripts/apply.sh`. Adaptery aktualizują zarządzane wpisy, zachowując osobiste serwery. Pola `gallery` i `version` nie należą do wspólnego rejestru.
 
 Przykład formatu:
 
