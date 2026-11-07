@@ -9,11 +9,17 @@
   "skills": [
     "./skills/context7-mcp",
     "./skills/create-pr",
+    "./skills/diagnosing-bugs",
     "./skills/famicord-sync",
     "./skills/figma",
+    "./skills/grill-me",
+    "./skills/grilling",
+    "./skills/ponytail",
+    "./skills/ponytail-review",
     "./skills/unslop",
     "./skills/wp-audit",
     "./skills/wp-update",
-    "./skills/wp-update-list"
+    "./skills/wp-update-list",
+    "./skills/writing-for-agents"
   ]
 }

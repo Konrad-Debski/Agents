@@ -1,12 +1,12 @@
 ---
 name: wp-update
-description: 'Update WordPress core, all plugins and ACF Pro to the latest stable releases in projects. Use when user asks to update WP, plugins or ACF in a project.'
+description: Use when asked to update WordPress core, plugins or ACF in a local project. For formatting pasted update notices, use wp-update-list instead.
 argument-hint: 'Optional additional project names or paths under ~/Dev; default: current project'
 ---
 
 # WordPress updates
 
-Update the current WordPress project, plus any additional projects explicitly named under `~/Dev`. Process projects sequentially because `docker-stop-all` stops containers globally. This workflow authorizes local updates and commits; publication still requires the confirmation prescribed by `create-pr`.
+Update the current WordPress project, plus any additional projects explicitly named under `~/Dev`. Process projects sequentially because `docker-stop-all` stops containers globally. This workflow authorizes local updates and commits; publication requires confirmation through the shared publication protocol in phase 6.
 
 ## Scope and blockers
 
@@ -18,10 +18,10 @@ Update the current WordPress project, plus any additional projects explicitly na
 
 ## 1. Update the base and create the branch
 
-1. Read `~/.agents/skills/create-pr/SKILL.md` before starting. Verify its required publication tools and authentication. If unavailable, report publication as blocked; independent local work may continue.
+1. Check GitHub CLI availability and authentication if publication is expected. Missing publication access blocks that phase, not independent local updates. Read the publication protocol only at phase 6.
 2. Prefer the repository's established integration branch, usually `develop`. Verify it against repository instructions and remote branches. If `develop` is absent, determine the documented main branch or ask when ambiguous. Use this same verified base for pull, branch creation and PR.
 3. Fetch the verified remote. On a clean worktree, switch to the base and pull with `git pull --ff-only <remote> <base>`. A local base with unpushed commits or divergence blocks the update; do not merge or rebase it automatically.
-4. Determine today's local date with `date +%F`. Create `chore/update-<YYYY-MM-DD>` from the refreshed base, for example `chore/update-2026-10-21`. This prefix is intentional: `create-pr` recognizes `chore`, not `update`. Check local and remote branch collisions first. Reuse only a verified branch from this run; otherwise ask instead of overwriting or inventing a suffix.
+4. Determine today's local date with `date +%F`. Create `chore/update-<YYYY-MM-DD>` from the refreshed base, using the `chore` prefix required by the publication naming convention. Check local and remote branch collisions first. Reuse only a verified branch from this run; otherwise ask instead of overwriting or inventing a suffix.
 
 Complete when the update branch starts at the verified, refreshed base and the original worktree state is preserved.
 
@@ -44,26 +44,15 @@ For noninteractive tool execution, use equivalent `docker compose exec -T dev ba
 
 Complete when this project's dev service, paths and local database are verified and a database recovery point is available.
 
-## 3. Determine ACF ownership and update Composer-managed ACF
+## 3. Determine ACF ownership
 
-Inspect the project's Composer manifests and lockfiles, installation paths and symlinks to determine how the installed ACF is managed. ACF may be a Composer-managed mu-plugin or a regular WordPress plugin; its directory alone does not establish ownership.
+Inspect manifests, lockfiles, installation paths and symlinks before choosing the update method. A mu-plugin directory alone does not establish Composer ownership.
 
-- If Composer manages ACF, use the owning manifest's directory inside the dev container and follow the steps below.
-- If no project manifest manages ACF and it is installed as a regular WordPress plugin, record its slug and version and update it with the other plugins in step 5. Missing Composer ownership alone is not a blocker and does not require confirmation. Skip the Composer command and separate ACF commit.
-- If ACF is an unmanaged mu-plugin, its ownership is ambiguous, or conflicting installations exist, report the blocker and clarify the update method. Preserve the installed distribution; do not install a replacement.
+- Composer-managed ACF: read [references/composer-acf.md](references/composer-acf.md), update through the owning manifest and commit that phase separately.
+- Regular-plugin ACF without Composer ownership: record its slug and version for phase 5. Skip the Composer command and separate ACF commit.
+- Unmanaged mu-plugin or conflicting ownership: report the blocker and clarify the update method. Preserve the installed distribution.
 
-For Composer-managed ACF Pro:
-
-```sh
-composer update wpengine/advanced-custom-fields-pro
-```
-
-1. Verify that the owning manifest declares `wpengine/advanced-custom-fields-pro` before running the command. A different Composer-managed ACF distribution requires clarification of its package-specific update command.
-2. Verify the resolved version against the latest stable release available from the configured authenticated package source. If the constraint prevents that version, stop this phase and report it. Do not broaden the update to all Composer dependencies or add `--with-all-dependencies` without agreement.
-3. Check the lockfile and installed ACF version, inspect the diff, and run the relevant configured checks. Preserve expected plugin installation/symlink conventions. Include tracked package files only where repository policy requires them.
-4. Stage only this phase's changes and commit using the repository's conventions, normally `chore: update ACF Pro`. If nothing changed, record that ACF is already current and omit an empty commit.
-
-Complete when Composer-managed ACF is verified current, its dependency state is consistent, checks pass and any changes are committed, or regular-plugin ACF is recorded for update and verification in step 5.
+Complete when ACF ownership is established and Composer-managed ACF is validated and committed, or regular-plugin ACF is assigned to phase 5.
 
 ## 4. Update WordPress core and commit
 
@@ -97,13 +86,9 @@ Complete when all plugin updates are accounted for, required checks pass and tas
 
 ## 6. Create the PR and merge
 
-1. Follow the loaded `create-pr` skill using the actual project repository and branch, not an unrelated workspace context. Use the verified base from step 1. The branch has type `chore`; do not invent a ticket ID.
-2. Present the branch, generated PR title, base and ordinary merge method, and obtain explicit confirmation using the VS Code question tool as required by `create-pr`. Disclose known merge-triggered deployments before confirmation. Confirmation covers only the presented projects and settings.
-3. Push committed changes without force after confirmation. Look up existing PRs for this head and base before creating one. Include version changes, validation results and relevant caveats in the repository's PR template. If nothing changed in any phase, report already current without an empty PR.
-4. Merge only the validated HEAD after checks and required reviews pass and GitHub reports it mergeable. Pending checks require waiting through a supported mechanism, not treating them as passed. Follow branch protections without administrator bypass, squash or rebase. If the remote HEAD changes, validate again before merging.
-5. Verify the PR is actually merged and record its URL and merge SHA. An open PR, scheduled auto-merge, failing check or merge conflict is not a completed merge. Report the blocker and preserve the branch and commits.
+Read [the publication protocol](../create-pr/references/workflow.md) now. Apply it to this project's repository, branch, verified base and validated HEAD. Include version changes and verification results in the PR. If no phase changed tracked files, report already current without an empty PR.
 
-Complete when the PR is verified merged or publication has an explicit pending/blocked status.
+A failed or unavailable required local check blocks publication. Record the protocol's merged, pending or blocked result for the final report.
 
 ## 7. Report and stop
 

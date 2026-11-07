@@ -1,56 +1,13 @@
 ---
 name: context7-mcp
-description: This skill should be used when the user asks about libraries, frameworks, API references, or needs code examples. Activates for setup questions, code generation involving libraries, or mentions of specific frameworks like React, Vue, Next.js, Prisma, Supabase, etc.
+description: Use when a question or implementation depends on current library, framework, SDK, API, CLI or cloud-service documentation. Skip API-independent refactoring and general programming.
 ---
 
-When the user asks about libraries, frameworks, or needs code examples, use Context7 to fetch current documentation instead of relying on training data.
+# Current documentation with Context7
 
-## When to Use This Skill
+Use Context7 for API syntax, configuration, version migration, porting between libraries, platforms or SQL dialects, library-specific debugging, setup and CLI usage. Prefer it over web search for library documentation, even when the API seems familiar. A framework name alone does not require a lookup when the task does not depend on its API.
 
-Activate this skill when the user:
-
-- Asks setup or configuration questions ("How do I configure a Next.js proxy?")
-- Requests code involving libraries ("Write a Prisma query for...")
-- Needs API references ("What are the Supabase auth methods?")
-- Mentions specific frameworks (React, Vue, Svelte, Express, Tailwind, etc.)
-
-## How to Fetch Documentation
-
-### Step 1: Resolve the Library ID
-
-Call `resolve-library-id` with:
-
-- `libraryName`: The library name extracted from the user's question
-- `query`: What to look up in the library's documentation (improves relevance ranking)
-
-### Step 2: Select the Best Match
-
-From the resolution results, choose based on:
-
-- Exact or closest name match to what the user asked for
-- Higher benchmark scores indicate better documentation quality
-- If the user mentioned a version (e.g., "React 19"), prefer version-specific IDs
-
-### Step 3: Fetch the Documentation
-
-Call `query-docs` with:
-
-- `libraryId`: The selected Context7 library ID (e.g., `/vercel/next.js`)
-- `query`: What to look up in the library's documentation, scoped to a single concept
-
-If the user's question spans multiple distinct concepts (e.g. routing and auth and caching), make a separate `query-docs` call per concept with the same library ID, unless the question is about how the concepts interact — combined queries dilute ranking and return shallow results for each topic.
-
-### Step 4: Use the Documentation
-
-Incorporate the fetched documentation into your response:
-
-- Answer the user's question using current, accurate information
-- Include relevant code examples from the docs
-- Cite the library version when relevant
-
-## Guidelines
-
-- **Be specific**: Describe what to look up in the library's documentation, but keep each query to a single concept
-- **One topic per query**: Split multi-topic questions into separate `query-docs` calls — resolve the library ID once, then query per concept, unless the question is about how the concepts interact
-- **Version awareness**: When users mention versions ("Next.js 16", "React 19"), use version-specific library IDs if available from the resolution step
-- **Prefer official sources**: When multiple matches exist, prefer official/primary packages over community forks
+1. Call `resolve-library-id` with `libraryName` and a `query` describing what to look up. Skip resolution only when the user supplies an exact `/org/project` ID.
+2. Select by exact name, relevance, snippet coverage, source reputation and benchmark score. Prefer official sources with High or Medium reputation and a version-specific ID when the user names a version. Retry with an alternate name or query if the results do not match.
+3. Call `query-docs` with the selected `libraryId` and a focused question. Query distinct concepts separately using the same ID; combine them only when asking how they interact.
+4. Use the fetched documentation in the answer or implementation. Match the project's version and cite sources when available. If Context7 is unavailable or lacks the needed documentation, report that limitation and use official documentation as a fallback.

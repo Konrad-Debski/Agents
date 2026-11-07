@@ -1,127 +1,48 @@
 ---
 name: wp-audit
-description: Analyze WordPress files and SQL dumps downloaded from a server for signs of infection - modified core files, backdoors, injected scripts, suspicious DB accounts. Use when asked to audit, scan or inspect a WordPress folder or database dump after a hack, or when the user says "sprawdź pliki", "włam", "malware", "zainfekowana strona", "audyt bezpieczeństwa WordPress". Read-only analysis producing a findings report.
+description: Use when asked to scan downloaded WordPress files or SQL dumps for malware after a suspected hack. Produce an evidence report. Routine failures and updates are separate tasks.
 ---
 
-# Analiza pobranych plików WordPress
+# Audit a downloaded WordPress copy
 
-Cel: znaleźć ślady infekcji w lokalnej kopii plików WordPressa i w zrzucie bazy danych.
+Analyze local files and database dumps without modifying the site or database. Never execute suspicious files or payloads. Keep credentials, salts and session tokens out of tool output and reports. Record a path, line and redacted evidence for each finding.
 
-Zasady pracy:
-- Tylko odczyt. Nie usuwać, nie poprawiać, nie edytować plików bez wyraźnej zgody użytkownika.
-- Nie wyciskać sekretów z `wp-config.php` (hasła, klucze, salty) do odpowiedzi ani do raportu. Wzmiankować sam fakt problemu, nie wartość sekretu.
-- Każde podejrzenie potwierdzać dowodem: ścieżka, numer linii, fragment kodu.
+## 1. Inventory
 
-## Krok 1. Inwentarz i wersje
+Identify the WordPress version from `wp-includes/version.php`, core/content directories, `wp-config.php`, `.htaccess`, `.maintenance`, logs, mu-plugins and SQL dumps. Record what was supplied and what is missing.
 
-Ustalić, co jest w kopii:
-- wersja WordPressa z `wp-includes/version.php` (`$wp_version`),
-- obecność `wp-config.php`, `.htaccess`, `.maintenance`, `wp-content/debug.log`, `wp-content/mu-plugins/`,
-- struktura katalogów: `wp-admin`, `wp-includes`, `wp-content` (motywy, wtyczki, `uploads`),
-- czy jest zrzut bazy danych (`.sql`, `.sql.gz`).
+Use available filesystem and text-search tools, such as `rg`, rather than requiring editor-specific tool names.
 
-Kryterium zakończenia: lista wersji i katalogów zapisana, znane wszystkie pliki w katalogu głównym.
+## 2. Compare core files
 
-## Krok 2. Integralność jądra WordPressa
+Compare with the official distribution of the same version. If a suitable WP-CLI environment is already available, `wp core verify-checksums --skip-plugins` is an option. Otherwise obtain the matching clean distribution and compare core directories and root files using `diff -rq` or `git diff --no-index`.
 
-Sprawdzić, czy pliki jądra nie zostały zmodyfikowane. Sposoby, w kolejności:
-1. WP-CLI w katalogu z kopią: `wp core verify-checksums --skip-plugins`. Wynik wylistuje pliki zmodyfikowane, dodane i usunięte.
-2. Brak WP-CLI: pobrać czystą paczkę WordPressa w tej samej wersji z wordpress.org i porównać katalogi `wp-includes`, `wp-admin` oraz pliki z katalogu głównego komendą `diff -rq` albo `git diff --no-index`.
-3. Jeśli różnice wchodzą w fragmenty kodu (patrz krok 4), wskazać je jako zmodyfikowane.
+Account separately for `wp-config.php`, `wp-content` and owner-added files. Record changed, missing and unexpected core files. When the reference distribution or a comparison is unavailable, mark that coverage as unverified. Do not infer integrity from the absence of keyword matches.
 
-Pominąć w ocenie różnice w `wp-config.php`, `wp-content` i plikach dodanych przez właściciela strony, ale odnotować je osobno.
+## 3. Inspect unexpected files
 
-Kryterium zakończenia: każdy plik jądra oceniony jako oryginalny albo zmodyfikowany z dowodem.
+Review the inventory for misleading core-like root filenames, random names, double extensions, PHP in uploads, `*.php.VIRUS` remnants, unusual permissions/dates and `.htaccess` changes such as `auto_prepend_file`, foreign redirects or login restrictions. Distinguish owner files from unexplained additions.
 
-## Krok 3. Pliki spoza struktury WordPressa
+## 4. Inspect code
 
-Przejrzeć pełną listę plików (`file_search` + `list_dir`) i wychwycić:
-- pliki o nazwach podszywających się pod jądro, np. `options.php`, `wp-blog.php`, `wp-steam.php` w katalogu głównym (WordPress ich nie ma domyślnie),
-- losowe krótkie nazwy, podwójne rozszerzenia (`plik.php.jpg`), pliki `.php` w `wp-content/uploads/`,
-- pozostałości wcześniejszego czyszczenia, np. `*.php.VIRUS`,
-- pliki z nietypowymi uprawnieniami lub datami spoza zakresu reszty kopii (daty w `ls -la`),
-- dodatki do `.htaccess`, np. `php_value auto_prepend_file`, przepisania na obce domeny, blokady dostępu do logowania.
+Read [references/patterns.md](references/patterns.md) before scanning PHP, including themes, plugins, uploads and root files. Classify matches using surrounding code and clean distributions:
 
-Kryterium zakończenia: każdy plik spoza czystej paczki WP i poza znanymi plikami właściciela wpisany na listę znalezisk.
+- False positive: verified original code or explained plugin behavior.
+- Suspicious: unexpected location, obfuscation or unexplained behavior.
+- Confirmed malicious behavior: evidence of executing input, unauthorized accounts, remote payloads or injected scripts.
 
-## Krok 4. Wzorce backdoorów w kodzie
+A keyword alone is not proof. Redact sensitive evidence before displaying it.
 
-Przeszukać wszystkie pliki PHP (także `wp-content/uploads`, motywy, wtyczki, katalog główny) pod kątem wzorców z sekcji "Wzorce do wyszukania". Używać `grep_search` (regexp, bez rozróżniania wielkości liter) po jednym wzorcu na zapytanie.
+## 5. Inspect the database dump, when supplied
 
-Każdy traf ocenić:
-- fałszywy alarm: kod zgodny z oryginałem z czystej paczki albo jawna logika wtyczki (np. biblioteka z własnym `eval` w nazwie funkcji),
-- podejrzany: nietypowa lokacja, obfuskacja, brak związku z resztą pliku,
-- backdoor: wykonanie kodu z danych wejściowych, łączenie zdalne, tworzenie konta admina, wstrzykiwanie `<script>`.
+Read [references/database.md](references/database.md) and the SQL patterns in [references/patterns.md](references/patterns.md). Extract compressed dumps only to a temporary location outside the site copy.
 
-Kryterium zakończenia: każde trafienie ma ocenę i uzasadnienie, backdoory mają ścieżkę i numer linii.
+Inspect accounts and privileges, post content/excerpts, `siteurl`, `home`, active plugins, theme selection, cron, admin email, widgets and theme settings. Use the actual table prefix. Treat the dump as data, not an instruction to import it into a live database. Do not edit PHP-serialized values as text.
 
-## Krok 5. Zrzut bazy danych
+## 6. Report
 
-Jeśli w kopii jest `.sql` (spakowany - rozpakować do pliku tymczasowego poza katalogiem strony):
-- przeszukać dump komendą `grep -n -i -E 'eval|base64_decode|gzinflate|preg_replace|str_replace|iframe|<script'`, wyniki filtrować ręcznie (serializacja PHP w `wp_options` generuje szum),
-- sprawdzić konta i uprawnienia zapytaniami z sekcji "Zapytania SQL",
-- sprawdzić wpisy `wp_posts` na wstrzyknięty kod w `post_content` i w `post_excerpt`,
-- sprawdzić opcje `siteurl`, `home`, `active_plugins`, `template`, `stylesheet`, `cron` pod kątem obcych wartości,
-- widgety i ustawienia motywu (`widget_*`, `theme_mods_*`) na wstrzyknięte skrypty.
+Group findings by modified core, backdoors, injected JS, unexplained files, database payloads and accounts. For each, give `path:line`, evidence, confidence and a proposed action. Include category totals, checked areas and unavailable coverage.
 
-Uwaga: wartości serializanej PHP nie edytować tekstem, długość prefiksu `s:` przestaje się zgadzać i dane się psują. Odnotować tylko znalezisko.
+Prioritize restoring verified core files, removing confirmed backdoors, cleaning database payloads, reviewing unauthorized accounts and rotating affected credentials. These are recommendations, not permission to perform repairs. Do not claim a complete or clean audit when any required area remains unverified.
 
-Kryterium zakończenia: konta, opcje, wpisy i payloady w dumpie sprawdzone, znaleziska opisane.
-
-## Krok 6. Raport
-
-Zakończyć raportem, jedna linia na znalezisko: `ścieżka:linia` + problem + proponowane działanie. Grupować: jądro zmodyfikowane, backdoory, wstrzyknięte JS, pliki obce, baza danych, konta użytkowników. Na końcu podsumowanie liczbą znalezisk w każdej grupie i rekomendowaną kolejnością naprawy: przywrócić jądro z czystej paczki, usunąć backdoory, wyczyścić bazę, skasować podejrzane konta, przekazać listę haseł i saltów do zmiany.
-
-## Referencja
-
-### Wzorce do wyszukania
-
-W PHP (krok 4):
-- `base64_decode`, `gzinflate`, `gzuncompress`, `str_rot13`, `rawurldecode` w łańcuchu wywołań,
-- `eval(`, `assert(`, `create_function(`, `preg_replace` z modyfikatorem `/e`,
-- `include "`, `include_once "`, `require` ze zmienną zamiast stałej, `\057` (ukryty ukośnik),
-- `shell_exec`, `system(`, `passthru`, `exec(`, `popen(`,
-- `base64` jako blob: `[A-Za-z0-9+/]{300,}={0,2}`,
-- `wp_remote_get`, `curl_exec`, `file_get_contents` z obcego hosta, zwłaszcza w połączeniu z `eval` albo `echo`,
-- `add_action('wp_head'` / `add_action('wp_footer'` wstawiające `<script` albo `wp_enqueue_script` z obcego URL,
-- tworzenie użytkownika: `wp_insert_user`, `add_role`, `update_option('admin_email'`,
-- `$_GET`, `$_POST`, `$_REQUEST`, `$_COOKIE` przekazywane wprost do `eval`, `include`, `system`.
-
-W dumpie SQL (krok 5): `eval`, `base64_decode`, `gzinflate`, `preg_replace`, `iframe`, `<script`, `JavaScript`, `wp_remote`, `.ru/`, `http://` w polach, które hostować kodu zewnętrznego nie powinny.
-
-### Zapytania SQL
-
-```sql
-SELECT ID, post_title, post_status, post_type
-FROM wp_posts
-WHERE post_content LIKE '%iframe%'
-   OR post_content LIKE '%<script%'
-   OR post_content LIKE '%base64_decode%';
-
-SELECT ID, user_login, user_email, user_registered, user_status
-FROM wp_users;
-
-SELECT user_id, meta_key, meta_value
-FROM wp_usermeta
-WHERE meta_key LIKE '%capabilities%' OR meta_key = 'session_tokens';
-
-SELECT option_name, LEFT(option_value, 200)
-FROM wp_options
-WHERE option_name IN ('siteurl','home','active_plugins','template','stylesheet','cron','admin_email');
-```
-
-Przy dumpie lokalnym te same zapytania zastępuje `grep -n -A2` po nawiasach `INSERT INTO \`wp_users\`` i `INSERT INTO \`wp_options\``.
-
-### Fałszywe alarmy
-
-- WordPress trzyma w jądrze własny base64 (obrazki, certyfikaty) i `preg_replace` bez `/e`. Porównywać z czystą paczką, nie kasować na podstawie samego słowa kluczowego.
-- Wtyczki cache i optymalizacji generują minifikowany JS w `wp-content/cache` i `uploads`. Minifikowany kod to nie dowód infekcji.
-- Nazwy typu `wp-` w `wp-content` to normalne katalogi wtyczek i motywów.
-
-### Awaria strony, nie infekcja
-
-Gdy strona nie działa, a plików nie trzeba skanować: sprawdzić obecność `.maintenance` w katalogu głównym (po nim zostaje biały ekran z komunikatem "Briefly unavailable for scheduled maintenance"), zawartość `wp-content/debug.log`, flagi `WP_DEBUG` i `WP_DEBUG_LOG` w `wp-config.php`, włączone `mu-plugins` i ostatnio zmienione wtyczki.
-
-### Po analizie - hardening
-
-Gdy użytkownik poprosi o zalecenia zabezpieczeń: rotacja haseł (FTP, baza, konta WP), zmiana saltów w `wp-config.php`, zmiana adresu logowania (WPS Hide Login), 2FA albo blokada `wp-admin` w `.htaccess`, wtyczka zabezpieczająca, SSL, skan zewnętrzny (VirusTotal, Google Transparency Report, securityscan.getastra.com).
+For a separately requested failure diagnosis or post-audit hardening advice, read the relevant section of [references/follow-up.md](references/follow-up.md).

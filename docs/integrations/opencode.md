@@ -1,0 +1,7 @@
+# OpenCode
+
+OpenCode otrzymuje symlink globalnego `AGENTS.md` w `${XDG_CONFIG_HOME:-~/.config}/opencode`. Skille odczytuje bezpośrednio z `~/.agents/skills`, bez dodatkowych kopii. Wykrywamy go po programie `opencode` w `PATH` lub istniejącym katalogu konfiguracji XDG.
+
+Adapter OpenCode aktualizuje `opencode.jsonc`, jeśli istnieje, a w pozostałych przypadkach `opencode.json`. Nowy plik używa sekcji `mcp.servers` OpenCode 2. Istniejące niepuste płaskie mapy `mcp` zachowują format zgodności OpenCode 1. Zmiany obejmują wyłącznie zarządzane wpisy, z zachowaniem komentarzy JSONC, końcowych przecinków, lokalnych MCP oraz innych ustawień, w tym timeoutów. Gdy istnieją oba pliki, adapter sprawdza kolizje także w drugim, ponieważ OpenCode wczytuje obie konfiguracje.
+
+Serwery stdio otrzymują `type: local`, tablicę `command` i opcjonalne `environment`. Serwery HTTP otrzymują `type: remote`, `url` i opcjonalne `headers`. Zmienne mają składnię `{env:NAZWA}`. Adapter nie przenosi poświadczeń OAuth ani wartości sekretów. Nie dopisuje pól `enabled` lub `disabled`, których format różni się między wydaniami. Osobne warstwy `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR` i `OPENCODE_CONFIG_CONTENT`, a także konfiguracja projektu, mogą nadpisać ustawienia globalne. Adapter nie modyfikuje tych warstw; `apply` i `doctor` informują o ustawionych zmiennych dodatkowej konfiguracji. Zmienne środowiskowe używane do wyboru konfiguracji muszą być takie same w terminalu, T3 i usłudze synchronizacji.

@@ -1,14 +1,17 @@
 ---
 name: figma
-description: Przygotuj precyzyjny brief implementacji nowej sekcji WordPress/ACF na podstawie projektu Figma
+description: Prepare a WordPress/ACF section implementation brief from Figma designs. Produces a brief only, not implementation code or general Figma editing.
 disable-model-invocation: true
-argument-hint: "Wklej nazwę sekcji, adres(y) URL Figmy, treść, warianty i wymagania dotyczące interakcji"
+argument-hint: "Section name, desktop/mobile Figma URLs, content, variants and interactions"
 ---
-Przygotuj brief implementacji nowej sekcji WordPress/ACF z Figma. Nie pisz kodu i nie twórz plików.
 
-## Wejście
+# WordPress section brief from Figma
 
-Otrzymasz brief w formie:
+Return a concise implementation brief in the user's language. Do not implement the section or create files. Keep the existing skill name for compatibility.
+
+## Inputs
+
+Accept these fields, including the existing Polish format:
 
 ```text
 Sekcja: ...
@@ -21,29 +24,28 @@ Interakcje: ...
 Podobny blok: ...
 ```
 
-Brakujące wartości oznacz `DECISION REQUIRED`. Gdy nie ma żadnego URL-a = blokada, najpierw poproś o node.
+Mark unknown values `DECISION REQUIRED`. Without any Figma URL, ask for the target node before analysis. Distinguish observed design facts from proposed behavior.
 
-## Zasady
+## Project conventions
 
-- Analizuj wskazane node'y Figma: desktop/mobile, stany, hierarchię, semantykę, interakcje, puste dane.
-- Szukaj istniejących wzorców przed tworzeniem nowych: `blocks/`, `parts/`, `inc/media/`, grupy ACF.
-- Używaj istniejących Heading, Button, Image, Video i ich ACF clones. Nowe pola tylko, gdy istniejący wzorzec nie wystarcza.
-- Dla nowych grup ACF: top-level accordion zgodny z konwencją.
-- Minimalna architektura: `block.json`, `index.php`, `index.twig`, ACF JSON. `index.ts`/`ts/`, `style.css`, partial tylko, gdy wymaga tego zachowanie lub reużycie.
-- Zachowanie: native HTML/CSS, potem WordPress Interactivity, potem scoped TypeScript.
-- Assety: najpierw `media()` i istniejące; zachowaj source, crop, alt ownership; waliduj `preview.webp` i `block.json`.
-- Przestrzegaj `AGENTS.md` i `figma-sections.instructions.md`. Nie powielaj ich treści.
+Read applicable project instructions and `figma-sections.instructions.md` when present. Inspect existing blocks, parts, media helpers and ACF groups before proposing new structures. The following defaults apply to themes using the `blocks/`, `parts/`, `inc/media/` and ACF-clone conventions. If the project uses another architecture, follow its documented equivalent and identify missing decisions.
 
-## Wynik
+- Reuse Heading, Button, Image, Video and their ACF clones. Add fields only for requirements existing parts cannot express. Use the project's top-level accordion convention for new groups.
+- Start with `block.json`, `index.php`, `index.twig` and ACF JSON. Add TypeScript, CSS or partials only for required behavior or reuse.
+- Prefer native HTML/CSS, then WordPress Interactivity, then scoped TypeScript, where supported by the project.
+- Reuse `media()` and existing assets. Preserve source, crop and alt ownership. Account for `preview.webp` and `block.json` validation.
+- Inspect desktop/mobile nodes, variants, states, interactions, semantics and empty data.
 
-Zwięzły brief:
+## Output
 
-1. **Zakres** — nazwa, slug, kategoria, node'y, pewne fakty, `DECISION REQUIRED`.
-2. **Layout** — DOM, desktop/mobile, warianty, stany.
-3. **Mapa design → dane** — tabela: Element Figmy | Istniejący part/clone | Proponowane pole | Typ i reguły | Fallback | Semantyka/a11y.
-4. **Architektura** — wymagane pliki, opcjonalne z powodem, wzorce reuse ze ścieżkami, wybór interakcji z uzasadnieniem.
-5. **Assety i preview** — reuse, nowe assety, `preview.webp` i `block.json`.
-6. **Plan implementacji** — max 8 kroków, łącznie z `./bin/link_block_jsons` i `php bin/check_acf_ids.php`.
-7. **Kryteria akceptacji** — desktop/mobile, stany, puste/pełne dane, edytor i frontend, a11y, crop i responsive reordering.
+Use the following Polish labels for a Polish request. Translate labels for other languages.
 
-Pisz krótko i technicznie. Nie powtarzaj danych wejściowych.
+1. **Zakres**: name, slug, category, nodes, confirmed facts and `DECISION REQUIRED`.
+2. **Layout**: DOM, desktop/mobile behavior, variants and states.
+3. **Mapa design → dane**: table with Figma element, existing part/clone, proposed field, type/rules, fallback and semantics/accessibility.
+4. **Architektura**: required files, justified optional files, existing patterns with paths and interaction approach.
+5. **Assety i preview**: reused/new assets, `preview.webp` and `block.json` requirements.
+6. **Plan implementacji**: at most eight steps. Include `./bin/link_block_jsons` and `php bin/check_acf_ids.php` when the project provides them. Identify unavailable required checks rather than inventing replacements.
+7. **Kryteria akceptacji**: desktop/mobile, states, empty/populated data, editor/frontend, accessibility, crop and responsive ordering.
+
+Do not repeat the supplied input as a second description of the task.

@@ -1,6 +1,6 @@
 ---
 name: wp-update-list
-description: "Clean pasted WordPress core, plugin, and theme update notices into a numbered Markdown list of name: old version -> new version. Use when user pastes WordPress update lists."
+description: Use when the user pastes WordPress update notices or asks to format them as a numbered version-change list. Format supplied text without updating a project.
 ---
 
 # WordPress update list

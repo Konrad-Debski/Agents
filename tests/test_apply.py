@@ -103,6 +103,39 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.home / '.codex/AGENTS.md').exists())
         self.assertFalse((self.home / '.claude.json').exists())
 
+    def test_claude_adds_new_symlinked_skills_and_reads_upstream_updates(self):
+        self.local(['claude-code'])
+        self.run_apply()
+        upstream = self.repo / '.upstream/vendor/skills/new-skill'
+        upstream.mkdir(parents=True)
+        (upstream / 'SKILL.md').write_text('First upstream version\n')
+        source = self.repo / 'skills/new-skill'
+        source.symlink_to('../.upstream/vendor/skills/new-skill', target_is_directory=True)
+
+        self.run_apply()
+        installed = self.home / '.claude/skills/new-skill'
+        self.assertTrue(installed.is_symlink())
+        self.assertEqual(os.readlink(installed), str(source))
+        self.assertEqual((installed / 'SKILL.md').read_text(), 'First upstream version\n')
+        before = installed.lstat().st_mtime_ns
+
+        (upstream / 'SKILL.md').write_text('Updated upstream version\n')
+        self.assertEqual((installed / 'SKILL.md').read_text(), 'Updated upstream version\n')
+        self.run_apply()
+        self.assertEqual(installed.lstat().st_mtime_ns, before)
+
+    def test_new_claude_skill_preserves_a_personal_skill_with_the_same_name(self):
+        self.local(['claude-code'])
+        self.run_apply()
+        personal = self.write('.claude/skills/new-skill/SKILL.md', 'Personal skill\n')
+        source = self.repo / 'skills/new-skill'
+        source.mkdir()
+        (source / 'SKILL.md').write_text('Shared skill\n')
+
+        self.run_apply(success=False)
+        self.assertEqual(personal.read_text(), 'Personal skill\n')
+        self.assertFalse(personal.parent.is_symlink())
+
     def test_existing_instructions_are_not_overwritten(self):
         path = self.write('.codex/AGENTS.md', 'My existing instructions')
         self.run_apply(success=False)
