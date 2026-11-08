@@ -41,7 +41,7 @@ git -C "$repo_dir" submodule foreach --quiet --recursive '
     }
 '
 git -C "$repo_dir" submodule update --init --recursive
-git -C "$repo_dir" submodule update --init --remote --checkout -- .upstream/git-sync
+git -C "$repo_dir" submodule update --init --remote --checkout
 bash -n "$upstream_script"
 git -C "$repo_dir" config --local branch.main.sync true
 git -C "$repo_dir" config --local branch.main.syncNewFiles true
@@ -116,4 +116,4 @@ else
     printf 'Brak loginctl. Sprawdź, czy systemd użytkownika działa także po wylogowaniu.\n' >&2
 fi
 
-printf 'Zaktualizowano submoduł git-sync do master i włączono agents-sync.timer.\nPierwsza synchronizacja za około minutę, kolejne co 15 minut po zakończeniu poprzedniej.\nLogi: journalctl --user -u agents-sync.service\n'
+printf 'Zaktualizowano wszystkie submoduły do najnowszych wersji upstream i włączono agents-sync.timer.\nPierwsza synchronizacja za około minutę, kolejne co 15 minut po zakończeniu poprzedniej.\nLogi: journalctl --user -u agents-sync.service\n'

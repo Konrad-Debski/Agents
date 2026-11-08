@@ -24,4 +24,4 @@ Wspólna baza wiedzy, skilli i konfiguracji MCP dla agentów AI. Repozytorium in
 - `adapters/` opisuje integracje z harnessami.
 - `scripts/` zawiera instalację, wdrażanie, synchronizację i diagnostykę.
 - `tests/` sprawdza adaptery i synchronizację w izolowanych katalogach.
-- `.upstream/` przechowuje przypięte źródła zewnętrzne.
+- `.upstream/` przechowuje źródła zewnętrzne aktualizowane automatycznie.

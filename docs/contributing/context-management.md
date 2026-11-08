@@ -34,7 +34,7 @@ Podstawą redakcji jest [seria For skill creators](https://agentskills.io/skill-
 
 Zmieniaj instrukcje na podstawie rozpoznanego problemu. Samo skrócenie tekstu lub poprawny frontmatter nie dowodzi lepszego działania. Przyszłe oceny powinny uwzględniać zarówno dobór skilla, jak i jakość wyniku. Automatyzację dodawaj dopiero dla powtarzanej pracy.
 
-Źródła zewnętrzne pozostają przypięte i nieedytowane. Ich dobór opisuje [upstream.md](../skills/upstream.md), a zasady aktualizacji [synchronization.md](../operations/synchronization.md).
+Źródła zewnętrzne są submodułami aktualizowanymi automatycznie do najnowszych wersji upstream. Nie edytuj ich plików. Ich dobór opisuje [upstream.md](../skills/upstream.md), a zasady aktualizacji [synchronization.md](../operations/synchronization.md).
 
 ## Ścieżki
 

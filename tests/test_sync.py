@@ -180,13 +180,10 @@ class SyncTests(unittest.TestCase):
         self.assertEqual((installed / 'SKILL.md').read_text(), 'Original vendor skill\n')
 
         self.advance(self.vendor, 'SKILL.md')
-        self.git(self.seed, 'submodule', 'update', '--remote', '--checkout', '--',
-                 '.upstream/cursor-plugins')
-        self.commit(self.seed, 'update the pinned vendor skill')
-        self.git(self.seed, 'push', 'origin', 'main')
         self.sync(env=env)
         self.assertIn('New upstream revision', (installed / 'SKILL.md').read_text())
 
+        self.git(self.seed, 'pull', '--ff-only')
         source.unlink()
         self.commit(self.seed, 'deselect the vendor skill')
         self.git(self.seed, 'push', 'origin', 'main')
@@ -194,23 +191,36 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(installed.is_symlink())
         self.assertEqual(personal.read_text(), 'Personal skill\n')
 
-    def test_self_update_is_published_and_vendor_stays_pinned(self):
-        vendor_before = self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD")
-        self.advance(self.vendor, "SKILL.md")
+    def test_all_upstream_updates_are_published(self):
+        vendor_latest = self.advance(self.vendor, "SKILL.md")
         latest = self.advance(self.upstream, "git-sync")
         self.sync()
         self.assertEqual(latest, self.git(self.repo / ".upstream/git-sync", "rev-parse", "HEAD"))
         self.assertIn(latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/git-sync"))
-        self.assertEqual(vendor_before, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
+        self.assertEqual(vendor_latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
+        self.assertIn(vendor_latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/cursor-plugins"))
         after = self.git(self.repo, "rev-parse", "HEAD")
         self.sync()
         self.assertEqual(after, self.git(self.repo, "rev-parse", "HEAD"))
+
+    def test_installer_updates_all_submodules_including_default_branch(self):
+        self.git(self.repo, "config", "-f", ".gitmodules", "--unset",
+                 "submodule..upstream/cursor-plugins.branch")
+        vendor_latest = self.advance(self.vendor, "SKILL.md")
+        latest = self.advance(self.upstream, "git-sync")
+        self.install(self.repo)
+        self.assertEqual(latest, self.git(self.repo / ".upstream/git-sync", "rev-parse", "HEAD"))
+        self.assertEqual(vendor_latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
+        vendor_latest = self.advance(self.vendor, "SKILL.md")
+        self.sync()
+        self.assertIn(vendor_latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/cursor-plugins"))
 
     def test_three_machines_converge_including_git_sync_update(self):
         others = [self.clone("computer-b"), self.clone("server")]
         for repo in others:
             self.install(repo)
         self.advance(self.upstream, "git-sync")
+        self.advance(self.vendor, "SKILL.md")
         (self.repo / "skills/skill.md").write_text("Shared update\n")
         self.sync()
         for repo in others:
@@ -251,6 +261,8 @@ class SyncTests(unittest.TestCase):
         shim = self.stubs / "git"
         shim.write_text(
             '#!/bin/bash\n'
+            # Model upstream changing after the automatic refresh.
+            'if [[ "$*" == "submodule update --init --remote --checkout" ]]; then exit 0; fi\n'
             'if [[ "$*" == "submodule update --init --recursive" ]]; then exit 42; fi\n'
             'exec ' + GIT + ' "$@"\n'
         )

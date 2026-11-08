@@ -51,9 +51,7 @@ if [[ -e "$pending" ]]; then
 fi
 
 before=$(git rev-parse HEAD)
-# Only git-sync follows the latest upstream branch automatically. Other
-# submodules keep the versions recorded in this repository.
-git submodule update --init --remote --checkout -- .upstream/git-sync
+git submodule update --init --remote --checkout
 bash -n "$upstream_script"
 touch "$pending"
 if bash "$upstream_script"; then
