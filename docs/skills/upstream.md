@@ -20,7 +20,7 @@ Z repo Matta nie udostępniamy globalnie procedur trackerów, jego alternatywneg
 
 ## Aktualizacja
 
-Gitlink w repo nadrzędnym określa dokładną wersję każdego źródła. Jedynie `git-sync` aktualizuje się automatycznie do bieżącej gałęzi upstream. Pozostałe źródła zmieniamy świadomie, z przeglądem diffu, metadanych i nadal istniejących ścieżek.
+Gitlink w repo nadrzędnym określa dokładną wersję każdego źródła. Instalator i synchronizacja automatycznie aktualizują wszystkie źródła do najnowszych commitów gałęzi upstream. Synchronizacja zapisuje i wysyła nowe gitlinki. Gałąź pochodzi z `.gitmodules`, a bez wpisu `branch` Git używa domyślnej gałęzi zdalnego repozytorium.
 
 Przy zadaniu aktualizacji wybranego źródła:
 
@@ -29,7 +29,7 @@ git -C ~/.agents submodule update --init --remote --checkout -- .upstream/ponyta
 git -C ~/.agents submodule update --init --remote --checkout -- .upstream/mattpocock-skills
 ```
 
-Uruchom tylko polecenie dotyczące aktualizowanego źródła. Zapisz nowy gitlink wraz z ewentualną zmianą symlinków oraz listy `skills` w `package.json`. Nie edytuj plików wewnątrz submodułu. Po zmianach uruchom `apply`, aby odświeżyć dowiązania Claude Code. Szczegóły tego procesu opisuje [synchronization.md](../operations/synchronization.md).
+Uruchom tylko polecenie dotyczące aktualizowanego źródła. Sprawdź diff, metadane i ścieżki wybranych skilli. Jeśli upstream je zmienił, popraw symlinki oraz listę `skills` w `package.json`. Nie edytuj plików wewnątrz submodułu. Zapisz nowy gitlink albo pozostaw to synchronizacji. Po zmianach uruchom `apply`, aby odświeżyć dowiązania Claude Code. Szczegóły tego procesu opisuje [synchronization.md](../operations/synchronization.md).
 
 Nie uruchamiaj skryptu Matta `scripts/link-skills.sh`, bo udostępnia szerszy zestaw niż wybrany tutaj. Samo pobranie repozytorium do `.upstream/` nie instaluje całego pakietu w katalogu skilli.
 

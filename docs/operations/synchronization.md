@@ -23,7 +23,9 @@ Instalator próbuje włączyć działanie systemd po wylogowaniu przez `loginctl
 
 ## Submoduły
 
-`.upstream/git-sync` automatycznie aktualizuje się do najnowszego `master`, zgodnie z dotychczasową polityką. Nie wprowadzaj w nim własnych zmian. `.upstream/cursor-plugins`, `.upstream/ponytail` i `.upstream/mattpocock-skills` pozostają na wersjach zapisanych w repozytorium. Wybrane skille dowiązujemy całymi katalogami, zachowując ich referencje i metadane. Codex pomija symlinki samego pliku `SKILL.md` podczas wykrywania skilli. Dobór i aktualizację nowych źródeł opisuje [upstream.md](../skills/upstream.md).
+Instalator i każdy przebieg synchronizacji aktualizują wszystkie submoduły zadeklarowane w `.gitmodules` do najnowszych commitów upstream. Gałąź określa wpis `branch` w `.gitmodules`: `master` dla `git-sync` i `main` dla `cursor-plugins`. Bez tego wpisu, jak dla `ponytail` i `mattpocock-skills`, Git używa domyślnej gałęzi zdalnego repozytorium. Synchronizacja zapisuje i wysyła nowe wskazania submodułów do `origin/main`.
+
+Nie edytuj plików wewnątrz submodułów. Niezapisane zmiany zatrzymują synchronizację. Wybrane skille dowiązujemy całymi katalogami, zachowując ich referencje i metadane. Codex pomija symlinki samego pliku `SKILL.md` podczas wykrywania skilli. Dobór nowych źródeł opisuje [upstream.md](../skills/upstream.md).
 
 Pobranie zapisanych wersji:
 
@@ -33,13 +35,14 @@ git -C ~/.agents submodule update --init --recursive
 bash ~/.agents/scripts/apply.sh
 ```
 
-Świadoma aktualizacja `unslop`:
+Ręczne pobranie najnowszych wersji wszystkich źródeł:
 
 ```bash
-git -C ~/.agents submodule update --init --remote --checkout -- .upstream/cursor-plugins
+git -C ~/.agents submodule update --init --remote --checkout
+bash ~/.agents/scripts/apply.sh
 ```
 
-Zmianę wskazania submodułu zapisz w commicie, aby udostępnić ją innym komputerom. Niezapisane zmiany wewnątrz submodułów zatrzymują synchronizację.
+Przy ręcznej aktualizacji zapisz nowe wskazania w commicie albo pozostaw to kolejnemu przebiegowi synchronizacji.
 
 ## Dowiązania Claude Code
 
@@ -47,7 +50,7 @@ Zmianę wskazania submodułu zapisz w commicie, aby udostępnić ją innym kompu
 
 Nowy skill wymaga jednego przebiegu `apply`. Edycja treści istniejącego skilla jest od razu widoczna przez to samo dowiązanie. Usunięcie skilla usuwa tylko dowiązanie wcześniej zarządzane przez adapter. Osobiste katalogi i obce symlinki pozostają chronione; kolizja nazwy zatrzymuje wdrażanie.
 
-`sync.sh` wykonuje `apply.sh` po udanej synchronizacji Git i aktualizacji przypiętych submodułów. Timer obejmuje więc także nowe i usunięte skille. Na gałęzi roboczej synchronizacja jest pomijana; dodane właśnie skille udostępnij od razu przez:
+`sync.sh` wykonuje `apply.sh` po udanej synchronizacji Git i aktualizacji submodułów. Timer obejmuje więc także nowe i usunięte skille. Na gałęzi roboczej synchronizacja jest pomijana; dodane właśnie skille udostępnij od razu przez:
 
 ```bash
 bash ~/.agents/scripts/apply.sh --dry-run
