@@ -20,6 +20,8 @@ Instalacja na docelowym komputerze odbywa się przez `bash ~/.agents/scripts/ins
 
 ## Organizacja wiedzy
 
+Główny `AGENTS.md` jest wczytywany przez agentów we wszystkich projektach. Umieszczaj w nim wyłącznie wskazówki wspólne dla projektów. Zasady dotyczące utrzymania repozytorium `~/.agents`, jego konwencje Git i odnośniki do dokumentacji przechowuj w `docs/`. Nie dodawaj ich do globalnego `AGENTS.md`, także jako odnośników z warunkiem odczytu tylko przy pracy w tym repozytorium.
+
 Zasady podziału instrukcji, dokumentacji i skilli opisuje [context-management.md](context-management.md). Przeczytaj je przed zmianą `AGENTS.md`, dodaniem skilla lub reorganizacją wiedzy.
 
 ## Testy

@@ -8,6 +8,5 @@ Wczytuj tylko źródła pasujące do bieżącego zadania.
 
 ## Pisanie i procedury
 
-- Zmiany w repozytorium `~/.agents`: czytaj [zasady utrzymania](~/.agents/docs/contributing/maintenance.md).
 - Pisanie lub redakcja tekstu: czytaj [zasady stylu](~/.agents/skills/unslop/SKILL.md).
 - Tworzenie, aktualizacja lub scalanie PR: czytaj [create-pr](~/.agents/skills/create-pr/SKILL.md).
