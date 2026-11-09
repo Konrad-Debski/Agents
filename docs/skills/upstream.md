@@ -8,7 +8,7 @@ Wczytuj przy dodawaniu lub aktualizowaniu zewnętrznych skilli. Źródła są su
 | --- | --- | --- |
 | [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Redakcja tekstów |
 | [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-review` | Mały zakres implementacji i przegląd zmian w motywie |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs` | Wymagania dla sekcji, instrukcje dla agentów i diagnoza błędów |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr` | Wymagania dla sekcji, instrukcje dla agentów, diagnoza błędów i opisy PR |
 
 `grilling` jest zależnością aktualnego `grill-me`. Pozostawienie samego aliasu uniemożliwiłoby wykonanie jego procedury. `diagnosing-bugs` ma własny szablon skryptu, a `writing-for-agents` plik `SKILL-MECHANICS.md`; symlink całego katalogu udostępnia także te zasoby.
 
@@ -16,7 +16,9 @@ Skille są ogólne i stosują się do PHP, Twig, ACF, CSS oraz TypeScript w moty
 
 Pozostałe skille są dostępne w źródłach, ale nie mają globalnych symlinków. Pomijamy pakietowy instalator, hooki i globalne reguły Ponytail, żeby dodanie źródła nie wymuszało jego odczytu przy każdym zadaniu. `ponytail` ma szeroki opis wywołania i po uruchomieniu działa przez sesję; zachowujemy zachowanie autora. Nie dopisujemy go do głównego `AGENTS.md`.
 
-Z repo Matta nie udostępniamy globalnie procedur trackerów, jego alternatywnego `pr`, generatorów środowiska, materiałów szkoleniowych ani skilli eksperymentalnych. Nie dublujemy istniejącego `create-pr`. TDD i projektowanie architektury pozostają w upstream do użycia w projekcie, który ich potrzebuje. Dodanie kolejnego skilla wymaga sprawdzenia jego zależności i uzasadnienia odrębnego zastosowania.
+`pr` z `engineering/pr` określa treść opisu PR. Własny `create-pr` prowadzi publikację i merge przez wspólny protokół, który odczytuje `pr` przy przygotowaniu opisu.
+
+Z repo Matta nie udostępniamy globalnie procedur trackerów, generatorów środowiska, materiałów szkoleniowych ani skilli eksperymentalnych. TDD i projektowanie architektury pozostają w upstream do użycia w projekcie, który ich potrzebuje. Dodanie kolejnego skilla wymaga sprawdzenia jego zależności i uzasadnienia odrębnego zastosowania.
 
 ## Aktualizacja
 

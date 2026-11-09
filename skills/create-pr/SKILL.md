@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Create and merge a pull request
 
-Read [references/workflow.md](references/workflow.md) before preparing publication. It defines branch naming, confirmation, GitHub commands, CI handling and merge verification.
+Follow [the publication protocol](references/workflow.md) to publish and merge the PR.
+
+For writing a PR body alone, use [pr](../pr/SKILL.md). The publication protocol reads it when preparing the body.
 
 Other workflows read that reference directly when they reach publication. They do not need to invoke this user-only skill.
