@@ -6,6 +6,7 @@ Użyj tej mapy, gdy harness nie pokazuje katalogu skilli. Otwórz procedurę pas
 | --- | --- | --- | --- |
 | Aktualna dokumentacja bibliotek, SDK, API, CLI i chmury | [context7-mcp](../../skills/context7-mcp/SKILL.md) | Dobór przez agenta | Odpowiedź lub implementacja oparta na dokumentacji |
 | Redakcja tekstu | [unslop](../../skills/unslop/SKILL.md) | Ręczny | Poprawiony tekst |
+| Pisanie opisu PR | [pr](../../skills/pr/SKILL.md) | Dobór przez agenta | Opis PR |
 | Publikacja PR i merge | [create-pr](../../skills/create-pr/SKILL.md) | Ręczny | Zweryfikowany wynik publikacji |
 | Przeniesienie zmian motywów między spółkami | [famicord-sync](../../skills/famicord-sync/SKILL.md) | Dobór przez agenta | Zmiany, walidacja i status każdego repozytorium |
 | Brief sekcji WordPress/ACF z Figmy | [figma](../../skills/figma/SKILL.md) | Ręczny | Brief, bez implementacji |
@@ -21,6 +22,8 @@ Użyj tej mapy, gdy harness nie pokazuje katalogu skilli. Otwórz procedurę pas
 ## Wspólne referencje
 
 `wp-update` i `famicord-sync` czytają [protokół publikacji](../../skills/create-pr/references/workflow.md) dopiero przed tą fazą. Jest to odczyt dokumentu, bez wywoływania ręcznego `create-pr`. Dla odnośników do zasad stylu w globalnej mapie również odczytaj wskazany plik jako referencję.
+
+Protokół publikacji odczytuje `pr` przy przygotowaniu opisu. `pr` odpowiada za treść opisu, a protokół za publikację i merge. Samo pisanie opisu nie upoważnia do tych operacji.
 
 `grill-me` wymaga `grilling`. W harnessie bez narzędzia `Skill` odczytaj oba pliki. Samo zainstalowanie skilla nie rozpoczyna wywiadu.
 

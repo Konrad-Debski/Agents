@@ -29,7 +29,13 @@ Generate the title:
 - With a ticket: `[TICKET] type: Description`, for example `[ALTER-65] feat: Image Expandable Tabs`.
 - Without a ticket: `type: Description`, for example `chore: Update Deps`.
 
-## 3. Confirm publication
+## 3. Prepare the PR body
+
+Read [pr](../../pr/SKILL.md) and use it as the source of PR body guidance. If the repository has a PR template, preserve its required fields and incorporate this content without duplicating it.
+
+For an existing PR, read its body with `gh pr view <number> --repo <repo> --json body`. Keep relevant reviewer context and replace stale descriptions with the final implementation. Save the prepared body in a temporary file outside tracked files before requesting publication confirmation.
+
+## 4. Confirm publication
 
 Show these settings before any push, PR write or merge:
 
@@ -41,19 +47,21 @@ Base:       <base>
 Method:     merge
 ```
 
+Show the prepared PR body or its diff for an existing PR.
+
 Disclose known merge-triggered deployments and unresolved caveats. Use an available structured question tool, including the VS Code question tool when present, and wait for explicit confirmation. If none is available, ask in chat. Keep existing confirmation for the same repositories and settings across retries. Changed scope or publication settings require renewed confirmation.
 
-## 4. Create or update the PR
+## 5. Create or update the PR
 
 1. Confirm the local HEAD still matches the validated SHA. Push committed changes with `git push -u <remote> <branch>`, without force. Preserve uncommitted files.
 2. Repeat the open-PR lookup before creation to avoid duplicates.
-3. If no PR exists, use `gh pr create --repo <repo> --head <branch> --base <base> --title <title> --body-file <body-file>`. Follow the repository's PR template. Include the change summary, validation and caveats; keep temporary body files outside tracked files.
-4. If an open PR exists, read it with `gh pr view <number> --repo <repo> --json number,url,title,state,headRefOid,baseRefName,body`. Update a differing title with `gh pr edit <number> --repo <repo> --title <title>`. Preserve existing body content when adding validation or caveats.
+3. If no PR exists, use `gh pr create --repo <repo> --head <branch> --base <base> --title <title> --body-file <body-file>` with the prepared body.
+4. If an open PR exists, read it with `gh pr view <number> --repo <repo> --json number,url,title,state,headRefOid,baseRefName,body`. Update a differing title or body with `gh pr edit <number> --repo <repo> --title <title> --body-file <body-file>`.
 5. Record the PR number, URL and remote head SHA. If the remote head differs from the validated SHA, stop and validate the changed revision before proceeding.
 
-Complete when one open PR has the intended head, base and title.
+Complete when one open PR has the intended head, base, title and prepared body.
 
-## 5. Check and merge
+## 6. Check and merge
 
 1. Read `gh pr view <number> --repo <repo> --json state,headRefOid,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup`.
 2. In a separate terminal call, run `GH_PAGER=cat GH_PROMPT_DISABLED=1 gh pr checks <number> --repo <repo> --json name,state,bucket,link` once. Interpret both its exit code and returned states:
