@@ -13,7 +13,14 @@ Przed przekazaniem zmian uruchom `python3 -m unittest discover -s tests -v` oraz
 
 Instalacja na docelowym komputerze odbywa się przez `bash ~/.agents/scripts/install.sh`, bez `sudo`. Bieżące wymagania opisuje [installation.md](../operations/installation.md).
 
+## Commity i gałęzie
+
+- Komunikaty commitów zapisuj zgodnie z [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), np. `chore: add development skills`. Opcjonalny zakres podawaj w nawiasach po typie, a zmiany niekompatybilne oznaczaj przez `!` lub stopkę `BREAKING CHANGE:`.
+- Gałęzie robocze nazywaj `<typ>/<opis-kebab-case>`, np. `chore/add-mattpocock-development-skills`. Prefiks odpowiada typowi zmiany, zgodnie z konwencją repozytorium stosowaną w [protokole publikacji PR](../../skills/create-pr/references/workflow.md).
+
 ## Organizacja wiedzy
+
+Główny `AGENTS.md` jest wczytywany przez agentów we wszystkich projektach. Umieszczaj w nim wyłącznie wskazówki wspólne dla projektów. Zasady dotyczące utrzymania repozytorium `~/.agents`, jego konwencje Git i odnośniki do dokumentacji przechowuj w `docs/`. Nie dodawaj ich do globalnego `AGENTS.md`, także jako odnośników z warunkiem odczytu tylko przy pracy w tym repozytorium.
 
 Zasady podziału instrukcji, dokumentacji i skilli opisuje [context-management.md](context-management.md). Przeczytaj je przed zmianą `AGENTS.md`, dodaniem skilla lub reorganizacją wiedzy.
 

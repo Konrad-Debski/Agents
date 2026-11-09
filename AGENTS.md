@@ -9,4 +9,4 @@ Wczytuj tylko źródła pasujące do bieżącego zadania.
 ## Pisanie i procedury
 
 - Pisanie lub redakcja tekstu: czytaj [zasady stylu](~/.agents/skills/unslop/SKILL.md).
-- Dobór procedury: wybierz skill według opisu w katalogu harnessu.
+- Tworzenie, aktualizacja lub scalanie PR: czytaj [create-pr](~/.agents/skills/create-pr/SKILL.md).
