@@ -13,6 +13,11 @@ Przed przekazaniem zmian uruchom `python3 -m unittest discover -s tests -v` oraz
 
 Instalacja na docelowym komputerze odbywa się przez `bash ~/.agents/scripts/install.sh`, bez `sudo`. Bieżące wymagania opisuje [installation.md](../operations/installation.md).
 
+## Commity i gałęzie
+
+- Komunikaty commitów zapisuj zgodnie z [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), np. `chore: add development skills`. Opcjonalny zakres podawaj w nawiasach po typie, a zmiany niekompatybilne oznaczaj przez `!` lub stopkę `BREAKING CHANGE:`.
+- Gałęzie robocze nazywaj `<typ>/<opis-kebab-case>`, np. `chore/add-mattpocock-development-skills`. Prefiks odpowiada typowi zmiany, zgodnie z konwencją repozytorium stosowaną w [protokole publikacji PR](../../skills/create-pr/references/workflow.md).
+
 ## Organizacja wiedzy
 
 Zasady podziału instrukcji, dokumentacji i skilli opisuje [context-management.md](context-management.md). Przeczytaj je przed zmianą `AGENTS.md`, dodaniem skilla lub reorganizacją wiedzy.

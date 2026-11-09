@@ -8,7 +8,7 @@ Wczytuj przy dodawaniu lub aktualizowaniu zewnętrznych skilli. Źródła są su
 | --- | --- | --- |
 | [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Redakcja tekstów |
 | [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-review` | Mały zakres implementacji i przegląd zmian w motywie |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr` | Wymagania dla sekcji, instrukcje dla agentów, diagnoza błędów i opisy PR |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Wymagania dla sekcji, instrukcje dla agentów, diagnoza błędów, opisy PR, retrospektywa, przekazanie pracy, TDD i projektowanie modułów |
 
 `grilling` jest zależnością aktualnego `grill-me`. Pozostawienie samego aliasu uniemożliwiłoby wykonanie jego procedury. `diagnosing-bugs` ma własny szablon skryptu, a `writing-for-agents` plik `SKILL-MECHANICS.md`; symlink całego katalogu udostępnia także te zasoby.
 
@@ -18,7 +18,7 @@ Pozostałe skille są dostępne w źródłach, ale nie mają globalnych symlink�
 
 `pr` z `engineering/pr` określa treść opisu PR. Własny `create-pr` prowadzi publikację i merge przez wspólny protokół, który odczytuje `pr` przy przygotowaniu opisu.
 
-Z repo Matta nie udostępniamy globalnie procedur trackerów, generatorów środowiska, materiałów szkoleniowych ani skilli eksperymentalnych. TDD i projektowanie architektury pozostają w upstream do użycia w projekcie, który ich potrzebuje. Dodanie kolejnego skilla wymaga sprawdzenia jego zależności i uzasadnienia odrębnego zastosowania.
+Z repo Matta nie udostępniamy globalnie procedur trackerów, generatorów środowiska, materiałów szkoleniowych ani skilli eksperymentalnych. `tdd` udostępniamy do pracy metodą test-first, a `codebase-design` do projektowania modułów i jako referencję dla TDD. `retro` i `handoff` uruchamia użytkownik. Dodanie kolejnego skilla wymaga sprawdzenia jego zależności i uzasadnienia odrębnego zastosowania.
 
 ## Aktualizacja
 
