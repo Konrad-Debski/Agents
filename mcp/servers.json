@@ -5,6 +5,19 @@
       "transport": "http",
       "url": "https://mcp.context7.com/mcp"
     },
+    "google-sheets-official": {
+      "transport": "http",
+      "url": "https://sheetsmcp.googleapis.com/mcp/v1",
+      "oauth": {
+        "client_id": "961980042533-jslgnh96s42bdbk0igb4q43agnmi2bv0.apps.googleusercontent.com",
+        "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET",
+        "scopes": [
+          "https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/drive.readonly"
+        ],
+        "auth_server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration"
+      }
+    },
     "openaiDeveloperDocs": {
       "transport": "http",
       "url": "https://developers.openai.com/mcp",

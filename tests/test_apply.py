@@ -36,6 +36,7 @@ class ApplyTests(unittest.TestCase):
         for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
             self.env.pop(variable, None)
         self.env['CONTEXT7_AUTHORIZATION'] = 'Bearer test-context7-key'
+        self.env['GOOGLE_SHEETS_MCP_CLIENT_SECRET'] = 'test-sheets-client-secret'
         self.local(['codex', 'claude-code', 'cursor', 'opencode', 'vscode'])
 
     def local(self, harnesses, disabled=None):
@@ -276,7 +277,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         local = self.config / 'agents/local.json'
         data = json.loads(local.read_text())
-        data['disabled_servers_by_harness'] = {'vscode': ['context7'], 'opencode': ['context7']}
+        data['disabled_servers_by_harness'] = {'vscode': ['context7', 'google-sheets-official'], 'opencode': ['context7']}
         local.write_text(json.dumps(data))
         self.run_apply()
         self.assertEqual(self.vscode_servers(), {'io.github.upstash/context7': personal})
@@ -341,6 +342,79 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.home / '.claude.json').exists())
         self.assertFalse((self.home / '.claude/CLAUDE.md').is_symlink())
         self.assertFalse((self.state / 'agents/managed.json').exists())
+
+    def test_oauth_server_reaches_every_harness_without_materializing_the_secret(self):
+        self.run_apply()
+        url, client = 'https://sheetsmcp.googleapis.com/mcp/v1', json.loads(
+            (self.repo / 'mcp/servers.json').read_text())['servers']['google-sheets-official']['oauth']['client_id']
+        scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly']
+        metadata = 'https://accounts.google.com/.well-known/openid-configuration'
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']
+        self.assertEqual(codex['google-sheets-official'], {'url': url, 'scopes': scopes})
+        claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
+        self.assertEqual(claude['google-sheets-official'], {'type': 'http', 'url': url, 'oauth': {
+            'clientId': client, 'scopes': ' '.join(scopes), 'authServerMetadataUrl': metadata}})
+        cursor = json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers']
+        self.assertEqual(cursor['google-sheets-official'], {'type': 'http', 'url': url, 'auth': {
+            'CLIENT_ID': client, 'CLIENT_SECRET': '${env:GOOGLE_SHEETS_MCP_CLIENT_SECRET}', 'scopes': scopes}})
+        opencode = json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']
+        self.assertEqual(opencode['google-sheets-official'], {'type': 'remote', 'url': url, 'oauth': {
+            'client_id': client, 'client_secret': '{env:GOOGLE_SHEETS_MCP_CLIENT_SECRET}', 'scope': ' '.join(scopes),
+            'auth_server_metadata_url': metadata}})
+        vscode = json.loads((self.config / 'Code/User/mcp.json').read_text())['servers']
+        self.assertEqual(vscode['google-sheets-official'], {'type': 'http', 'url': url, 'oauth': {'clientId': client}})
+        for base in (self.home, self.state, self.config):
+            for file in base.rglob('*'):
+                if file.is_file():
+                    self.assertNotIn(self.env['GOOGLE_SHEETS_MCP_CLIENT_SECRET'].encode(), file.read_bytes())
+
+    def test_codex_keeps_local_oauth_table_next_to_managed_server(self):
+        self.local(['codex'])
+        codex = self.write('.codex/config.toml', '[mcp_servers.google-sheets-official.oauth]\nclient_id = "local"\nclient_secret = "local-secret"\n')
+        result = self.run_apply()
+        self.assertNotIn('client_secret', result.stdout)
+        server = tomllib.loads(codex.read_text())['mcp_servers']['google-sheets-official']
+        self.assertEqual(server['oauth'], {'client_id': 'local', 'client_secret': 'local-secret'})
+        self.assertEqual(server['url'], 'https://sheetsmcp.googleapis.com/mcp/v1')
+        self.run_apply()
+        codex.write_text('[mcp_servers.google-sheets-official]\nurl = "https://personal.example/mcp"\n')
+        self.run_apply(success=False)
+
+    def test_codex_and_claude_report_missing_local_oauth_secret(self):
+        self.local(['codex', 'claude-code'])
+        result = self.run_apply()
+        self.assertIn('[mcp_servers.google-sheets-official.oauth]', result.stdout)
+        self.assertIn('claude mcp add -s user', result.stdout)
+        self.write('.claude/.credentials.json', '{"mcpOAuthClientConfig": {"google-sheets-official|0123": {"clientSecret": "x"}}}')
+        self.assertNotIn('claude mcp add', self.run_apply().stdout)
+
+    def test_claude_entry_reduced_by_cli_is_restored(self):
+        self.local(['claude-code'])
+        self.run_apply()
+        path = self.home / '.claude.json'
+        data = json.loads(path.read_text())
+        expected = dict(data['mcpServers']['google-sheets-official'])
+        data['mcpServers']['google-sheets-official'] = {'type': 'http', 'url': expected['url'],
+                                                        'oauth': {'clientId': expected['oauth']['clientId']}}
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        self.assertEqual(json.loads(path.read_text())['mcpServers']['google-sheets-official'], expected)
+
+    def test_doctor_requires_oauth_secret_only_for_harnesses_reading_environment(self):
+        self.env.pop('GOOGLE_SHEETS_MCP_CLIENT_SECRET')
+        self.local(['codex', 'claude-code', 'vscode'])
+        self.run_apply()
+        self.assertNotIn('GOOGLE_SHEETS_MCP_CLIENT_SECRET', self.run_apply(action='doctor').stdout)
+        self.local(['opencode'])
+        self.run_apply()
+        self.assertIn('GOOGLE_SHEETS_MCP_CLIENT_SECRET', self.run_apply(action='doctor', success=False).stdout)
+
+    def test_invalid_oauth_definition_prevents_writes(self):
+        path, data = self.servers()
+        data['servers']['google-sheets-official']['oauth']['client_secret'] = 'literal'
+        path.write_text(json.dumps(data))
+        self.run_apply(success=False)
+        self.assertFalse((self.home / '.claude.json').exists())
 
     def test_doctor_reports_missing_environment_without_exposing_values(self):
         path, data = self.servers()
@@ -475,7 +549,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(before, path.read_bytes())
 
     def test_opencode_filters_harness_and_disabled_servers(self):
-        self.local(['opencode'], ['context7'])
+        self.local(['opencode'], ['context7', 'google-sheets-official'])
         path, data = self.servers()
         data['servers']['codexOnly'] = {'transport':'http', 'url':'https://example.com/codex', 'harnesses':['codex']}
         data['servers']['openaiDeveloperDocs']['harnesses'] = ['opencode']
@@ -581,7 +655,7 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
-        self.assertEqual(set(self.vscode_servers()), {'context7'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'google-sheets-official'})
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])
@@ -608,7 +682,7 @@ class ApplyTests(unittest.TestCase):
         shared['servers']['openaiDeveloperDocs']['harnesses'] = ['codex']
         servers_path.write_text(json.dumps(shared))
         self.run_apply()
-        self.assertEqual(set(self.vscode_servers()), {'context7'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'google-sheets-official'})
 
     def test_narrowing_server_harnesses_removes_only_managed_entries_elsewhere(self):
         self.write('.claude.json', '{"mcpServers": {"personal": {"command": "custom"}}}')
@@ -618,7 +692,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.run_apply()
         claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
-        self.assertEqual(set(claude), {'personal', 'context7'})
+        self.assertEqual(set(claude), {'personal', 'context7', 'google-sheets-official'})
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers'])
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
         self.assertNotIn('openaiDeveloperDocs', self.vscode_servers())

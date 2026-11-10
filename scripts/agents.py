@@ -66,8 +66,19 @@ def registry():
             require(isinstance(server.get('command'), str) and server['command'], f'{name}: brak command')
             require(not server['command'].startswith(('/', '~')), f'{name}: command musi być przenośne')
         elif transport == 'http':
-            fields |= {'url', 'header_env'}
+            fields |= {'url', 'header_env', 'oauth'}
             require(isinstance(server.get('url'), str), f'{name}: brak url')
+            oauth = server.get('oauth', {'client_id': ''})
+            require(isinstance(oauth, dict) and isinstance(oauth.get('client_id'), str)
+                    and not (set(oauth) - {'client_id', 'client_secret_env', 'scopes', 'auth_server_metadata_url'}),
+                    f'{name}: oauth wymaga client_id i przyjmuje client_secret_env, scopes, auth_server_metadata_url')
+            require(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(oauth.get('client_secret_env', '_'))),
+                    f'{name}: client_secret_env musi wskazywać nazwę zmiennej')
+            scopes = oauth.get('scopes', [])
+            require(isinstance(scopes, list) and all(isinstance(v, str) and v and not re.search(r'\s', v) for v in scopes),
+                    f'{name}: scopes musi być listą napisów bez odstępów')
+            require(str(oauth.get('auth_server_metadata_url', 'https://')).startswith('https://'),
+                    f'{name}: auth_server_metadata_url musi używać https')
             url = urlsplit(server['url'])
             require(url.scheme in {'https', 'http'} and url.hostname and not url.username
                     and not url.password and not url.query and not url.fragment,
@@ -126,7 +137,40 @@ def guard(staged=False):
                 check_path(name, b'' if mode == b'160000' else git('show', commit + ':' + name))
 
 
+def convert_oauth(oauth, harness):
+    """Only OpenCode and Cursor can reference the client secret; the others keep it locally."""
+    secret = oauth.get('client_secret_env')
+    scopes = oauth.get('scopes', [])
+    metadata = oauth.get('auth_server_metadata_url')
+    if harness == 'codex':
+        # A managed table cannot be reopened, so a client with a secret leaves the whole oauth table local.
+        return ({'scopes': scopes} if scopes else {}) | ({} if secret else {'oauth': {'client_id': oauth['client_id']}})
+    if harness == 'cursor':
+        return {'auth': {'CLIENT_ID': oauth['client_id']} | ({'CLIENT_SECRET': '${env:' + secret + '}'} if secret else {})
+                | ({'scopes': scopes} if scopes else {})}
+    if harness == 'vscode':
+        return {'oauth': {'clientId': oauth['client_id']}}
+    if harness == 'opencode':
+        return {'oauth': {'client_id': oauth['client_id']} | ({'client_secret': '{env:' + secret + '}'} if secret else {})
+                | ({'scope': ' '.join(scopes)} if scopes else {})
+                | ({'auth_server_metadata_url': metadata} if metadata else {})}
+    return {'oauth': {'clientId': oauth['client_id']} | ({'scopes': ' '.join(scopes)} if scopes else {})
+            | ({'authServerMetadataUrl': metadata} if metadata else {})}
+
+
+def within(part, whole):
+    return isinstance(part, dict) and isinstance(whole, dict) and all(key in whole and (within(value, whole[key]) if isinstance(value, dict)
+                                           else value == whole[key]) for key, value in part.items())
+
+
 def convert(server, harness):
+    result = convert_plain(server, harness)
+    if server.get('oauth'):
+        result |= convert_oauth(server['oauth'], harness)
+    return result
+
+
+def convert_plain(server, harness):
     if harness == 'opencode':
         if server['transport'] == 'stdio':
             result = {'type': 'local', 'command': [server['command'], *server.get('args', [])]}
@@ -348,9 +392,13 @@ def merge_mcp(path, fmt, old, desired):
             text = text[:start] + text[stop:]
         require(tomllib.loads(managed).get('mcp_servers', {}) == old, f'{path}: ręcznie zmieniony blok zarządzany lub brak stanu')
         remaining = tomllib.loads(text).get('mcp_servers', {})
-        require(not (set(remaining) & set(desired)), f'{path}: kolizja nazwy MCP')
+        # A local [mcp_servers.NAME.oauth] table may hold the client secret of a managed server.
+        local = {name: remaining[name] for name in set(remaining) & set(desired)}
+        require(all(set(value) == {'oauth'} and 'oauth' not in desired[name] for name, value in local.items()),
+                f'{path}: kolizja nazwy MCP')
         result = text.rstrip() + ('\n\n' if text.strip() and desired else '') + toml_block(desired)
-        require(tomllib.loads(result).get('mcp_servers', {}) == {**remaining, **desired}, f'{path}: niepoprawny wynik TOML')
+        expected = {**remaining, **{name: value | local.get(name, {}) for name, value in desired.items()}}
+        require(tomllib.loads(result).get('mcp_servers', {}) == expected, f'{path}: niepoprawny wynik TOML')
         return result.encode()
     data = json.loads(text) if text.strip() else {}
     require(isinstance(data, dict), f'{path}: wymagany obiekt JSON')
@@ -358,7 +406,9 @@ def merge_mcp(path, fmt, old, desired):
     require(isinstance(current, dict), f'{path}: mcpServers musi być obiektem')
     for name, value in old.items():
         if name in current:
-            require(current.get(name) == value, f'{path}: ręcznie zmieniony zarządzany serwer {name}')
+            # `claude mcp add --client-secret` rewrites the entry in a reduced form; restore it.
+            require(current.get(name) == value or within(current[name], desired.get(name)),
+                    f'{path}: ręcznie zmieniony zarządzany serwer {name}')
         current.pop(name, None)
     require(not (set(current) & set(desired)), f'{path}: kolizja nazwy MCP')
     if current or desired or 'mcpServers' in data:
@@ -497,6 +547,19 @@ def prepare():
                 remaining, _ = opencode_servers(merge_mcp(other, 'opencode', owned, {}).decode())
                 require(not (set(remaining) & set(desired)), f'{other}: kolizja MCP w drugim pliku OpenCode')
         content = merge_mcp(config_path, adapter['format'], old, desired)
+        for server in desired:
+            oauth = servers[server].get('oauth', {})
+            if 'client_secret_env' not in oauth:
+                continue
+            if name == 'codex' and not tomllib.loads(content.decode())['mcp_servers'][server].get('oauth', {}).get('client_secret'):
+                notices.append(f'Codex: dodaj w {config_path} poza blokiem zarządzanym sekcję [mcp_servers.{server}.oauth] '
+                               f'z client_id = "{oauth["client_id"]}" i client_secret, potem uruchom: codex mcp login {server}')
+            # Claude Code keeps the secret in its credential store; the plain-text store exists only on Linux.
+            if name == 'claude-code' and not any(entry.startswith(server + '|') for entry in
+                                                 load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
+                notices.append(f'Claude Code: zapisz sekret OAuth raz na komputerze: claude mcp remove -s user {server}; '
+                               f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
+                               f'{server} {servers[server]["url"]}; potem ponów apply.sh')
         before = snapshot(config_path)
         if before[0] != 'missing' or desired:
             if before[1] != content:
@@ -577,7 +640,13 @@ def doctor():
             continue
         if server['transport'] == 'stdio' and not shutil.which(server['command']):
             problems.append(f'{name}: brak programu {server["command"]}')
-        for variable in sorted(set(server.get('requires_env', []) + server.get('env_vars', []) + list(server.get('header_env', {}).values()))):
+        secret = server.get('oauth', {}).get('client_secret_env')
+        # Only these harnesses read the client secret from the environment.
+        referenced = [secret] if secret and any(
+            harness in server.get('harnesses', selected) and name not in scoped_disabled.get(harness, [])
+            for harness in {'cursor', 'opencode'} & set(selected)) else []
+        for variable in sorted(set(server.get('requires_env', []) + server.get('env_vars', []) + referenced
+                                   + list(server.get('header_env', {}).values()))):
             if not os.environ.get(variable):
                 problems.append(f'{name}: brak zmiennej {variable}')
     for path in changes:
