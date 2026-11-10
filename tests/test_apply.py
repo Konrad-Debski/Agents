@@ -277,7 +277,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         local = self.config / 'agents/local.json'
         data = json.loads(local.read_text())
-        data['disabled_servers_by_harness'] = {'vscode': ['context7', 'google-sheets-official'], 'opencode': ['context7']}
+        data['disabled_servers_by_harness'] = {'vscode': ['context7', 'figma', 'google-sheets-official'], 'opencode': ['context7']}
         local.write_text(json.dumps(data))
         self.run_apply()
         self.assertEqual(self.vscode_servers(), {'io.github.upstash/context7': personal})
@@ -549,7 +549,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(before, path.read_bytes())
 
     def test_opencode_filters_harness_and_disabled_servers(self):
-        self.local(['opencode'], ['context7', 'google-sheets-official'])
+        self.local(['opencode'], ['context7', 'figma', 'google-sheets-official'])
         path, data = self.servers()
         data['servers']['codexOnly'] = {'transport':'http', 'url':'https://example.com/codex', 'harnesses':['codex']}
         data['servers']['openaiDeveloperDocs']['harnesses'] = ['opencode']
@@ -655,7 +655,7 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
-        self.assertEqual(set(self.vscode_servers()), {'context7', 'google-sheets-official'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])
@@ -682,7 +682,7 @@ class ApplyTests(unittest.TestCase):
         shared['servers']['openaiDeveloperDocs']['harnesses'] = ['codex']
         servers_path.write_text(json.dumps(shared))
         self.run_apply()
-        self.assertEqual(set(self.vscode_servers()), {'context7', 'google-sheets-official'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
 
     def test_narrowing_server_harnesses_removes_only_managed_entries_elsewhere(self):
         self.write('.claude.json', '{"mcpServers": {"personal": {"command": "custom"}}}')
@@ -692,7 +692,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.run_apply()
         claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
-        self.assertEqual(set(claude), {'personal', 'context7', 'google-sheets-official'})
+        self.assertEqual(set(claude), {'personal', 'context7', 'figma', 'google-sheets-official'})
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers'])
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
         self.assertNotIn('openaiDeveloperDocs', self.vscode_servers())

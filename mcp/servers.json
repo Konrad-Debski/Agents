@@ -5,6 +5,10 @@
       "transport": "http",
       "url": "https://mcp.context7.com/mcp"
     },
+    "figma": {
+      "transport": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
     "google-sheets-official": {
       "transport": "http",
       "url": "https://sheetsmcp.googleapis.com/mcp/v1",
