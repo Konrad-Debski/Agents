@@ -22,7 +22,7 @@ Klucze API dostarczaj w środowisku uruchamianego harnessu. Zmienne ustawione ty
 
 ## Definicje MCP
 
-Rejestr obejmuje zdalny serwer Context7 pod `https://mcp.context7.com/mcp` oraz publiczny serwer dokumentacji OpenAI. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 korzysta ze Streamable HTTP i nie wymaga lokalnego Node.js ani `npx`. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+Rejestr obejmuje zdalne serwery Context7 pod `https://mcp.context7.com/mcp` i Figma pod `https://mcp.figma.com/mcp` oraz publiczny serwer dokumentacji OpenAI. Figma loguje przez OAuth w każdym harnessie osobno i nie wymaga sekretu. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 korzysta ze Streamable HTTP i nie wymaga lokalnego Node.js ani `npx`. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
 
 Domyślna konfiguracja Context7 łączy się bez klucza API. Dzięki temu brak zmiennej autoryzacji nie blokuje startu MCP. Klucz pozwala uzyskać [wyższe limity zapytań](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). Własne połączenia z autoryzacją można zachować i wyłączyć wspólny wpis przez `disabled_servers_by_harness`.
 
