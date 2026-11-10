@@ -55,4 +55,28 @@ Przykład formatu:
 
 Obsługujemy `stdio` i Streamable HTTP. `env_vars` przekazuje zmienne do procesu, `header_env` wskazuje zmienne z wartościami nagłówków, a `requires_env` dodaje wymagania do diagnostyki. Wygenerowana konfiguracja zawiera odwołania do zmiennych, nigdy odczytane wartości. `harnesses` opcjonalnie ogranicza integrację do wskazanych narzędzi.
 
+## Serwery z OAuth i własnym klientem
+
+Serwer HTTP bez dynamicznej rejestracji klienta, taki jak `google-sheets-official`, opisuje pole `oauth`:
+
+```json
+"oauth": {
+  "client_id": "…apps.googleusercontent.com",
+  "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET",
+  "scopes": ["https://www.googleapis.com/auth/spreadsheets"],
+  "auth_server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration"
+}
+```
+
+Wymagane jest tylko `client_id`. Sekret klienta pozostaje poza repozytorium, a każdy harness dostaje go inaczej:
+
+| Harness | Sekret klienta |
+|---|---|
+| OpenCode, Cursor | odwołanie do zmiennej z `client_secret_env` w środowisku harnessu |
+| Codex | lokalna sekcja `[mcp_servers.NAZWA.oauth]` z `client_id` i `client_secret`, poza blokiem zarządzanym w `config.toml` |
+| Claude Code | magazyn poświadczeń Claude, zapisany poleceniem `claude mcp add --client-secret` |
+| VS Code | pytanie o sekret przy pierwszym uruchomieniu serwera |
+
+`apply` wypisuje gotowe polecenie dla Codex i Claude Code, dopóki nie znajdzie sekretu. Polecenie Claude Code zastępuje wpis skróconą wersją, a kolejne `apply` przywraca pełną. `doctor` wymaga zmiennej z `client_secret_env` tylko wtedy, gdy serwer trafia do OpenCode lub Cursor. Logowanie w przeglądarce wykonujesz w każdym harnessie osobno.
+
 Nie umieszczaj sekretów w argumentach, URL ani plikach źródłowych. Wspólny rejestr nie przyjmuje dowolnych pól `env` lub `headers` ze stałymi wartościami. Polecenia powinny być dostępne w `PATH`, bez ścieżek `/home/...`. Zależności MCP instalujesz lokalnie. Jeśli potrzebujesz powtarzalnej wersji paczki, przypnij jej wersję w argumentach polecenia.
