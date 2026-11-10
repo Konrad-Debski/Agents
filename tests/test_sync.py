@@ -64,6 +64,7 @@ class SyncTests(unittest.TestCase):
         for directory in ("adapters", "mcp"):
             shutil.copytree(ROOT / directory, self.seed / directory)
         shutil.copy(ROOT / ".gitignore", self.seed)
+        shutil.copy(ROOT / "install.sh", self.seed)
         shutil.copy(ROOT / "AGENTS.md", self.seed)
         (self.seed / "skills").mkdir()
         (self.seed / "skills/skill.md").write_text("Original skill\n")
@@ -116,10 +117,10 @@ class SyncTests(unittest.TestCase):
         self.git(repo, "commit", "-m", message)
 
     def install(self, repo):
-        return self.run_cmd(repo, "bash", "scripts/install-sync.sh")
+        return self.run_cmd(repo, "bash", "install.sh")
 
     def sync(self, repo=None, success=True, env=None):
-        return self.run_cmd(repo or self.repo, "bash", "scripts/sync.sh",
+        return self.run_cmd(repo or self.repo, "bash", "scripts/sync/run.sh",
                             success=success, env=env)
 
     def advance(self, repo, filename):
@@ -295,7 +296,7 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.git(self.repo, 'ls-files', '--', 'local.json'), '')
         self.git(self.repo, 'add', '-f', 'local.json')
         result = self.sync(success=False)
-        self.assertIn('Poza zakresem synchronizacji', result.stdout)
+        self.assertIn('Outside the synchronization scope', result.stdout)
 
     def test_secret_in_shared_source_is_not_committed(self):
         before = self.git(self.repo, 'rev-parse', 'HEAD')
@@ -331,7 +332,7 @@ class SyncTests(unittest.TestCase):
             env = dict(self.env, HOME=str(home), XDG_CONFIG_HOME=str(home / '.config'),
                        XDG_STATE_HOME=str(home / '.local/state'))
             env.pop('CODEX_HOME', None)
-            self.run_cmd(repo, 'bash', 'scripts/install-sync.sh', env=env)
+            self.run_cmd(repo, 'bash', 'install.sh', env=env)
             environments.append(env)
         registry = self.repo / 'mcp/servers.json'
         data = json.loads(registry.read_text())
@@ -351,7 +352,7 @@ class SyncTests(unittest.TestCase):
         local.write_text('{"harnesses": ["codex"]}')
         env = dict(self.env)
         env.pop('CODEX_HOME', None)
-        self.run_cmd(self.repo, 'bash', 'scripts/install-sync.sh', env=env)
+        self.run_cmd(self.repo, 'bash', 'install.sh', env=env)
         config = self.home / '.codex/config.toml'
         before = config.read_bytes()
         (self.seed / 'mcp/servers.json').write_text('{"version": 100}')

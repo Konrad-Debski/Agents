@@ -1,43 +1,46 @@
-# Organizacja wiedzy dla agentów
+# Organizing knowledge for agents
 
-Wczytuj przy zmianie instrukcji, skilli lub dokumentacji w `~/.agents`.
+Load when changing instructions, skills or documentation in `~/.agents`.
 
-## Gdzie zapisać wiedzę
+## Where to store knowledge
 
-| Zawartość | Miejsce |
+| Content | Location |
 | --- | --- |
-| Warunek odczytu i wskazanie źródła | Główny `AGENTS.md` |
-| Konfiguracja, konwencje i utrzymanie | Tematyczny plik w `docs/` |
-| Spójna procedura dla konkretnego zadania | `skills/<nazwa>/SKILL.md` |
-| Szczegóły potrzebne tylko w określonym wariancie | `skills/<nazwa>/references/` |
-| Wspólny protokół kilku procedur | Jedna referencja Markdown wskazana przez wszystkich odbiorców |
-| Wiedza dotycząca jednego projektu | Instrukcje, dokumentacja lub skille tego projektu |
+| Read condition and source pointer | The main `AGENTS.md` |
+| Configuration, conventions and maintenance | A topic file in `docs/` |
+| A coherent procedure for a specific task | `skills/<name>/SKILL.md` |
+| Details needed only in a specific variant | `skills/<name>/references/` |
+| A protocol shared by several procedures | One Markdown reference that every consumer points to |
+| Knowledge about a single project | That project's instructions, documentation or skills |
 
-## Treść i warunki odczytu
+## Content and read conditions
 
-- Główny `AGENTS.md` pozostaje mapą. Każdy odnośnik wskazuje temat i warunek odczytu. Otwieraj wyłącznie źródła potrzebne do zadania.
-- Zachowuj spójne jednostki pracy. Wydzielaj warianty i obszerne referencje, gdy nie są potrzebne przy każdym użyciu. Krótki skill może pozostać jednym plikiem.
-- Każda reguła ma jedno źródło. Współdzielone protokoły odczytuj jako pliki, bez wywoływania ręcznych skilli jako zależności. Zachowuj dotychczasowy tryb wywoływania skilli i wymagane zgody.
-- Opis skilla określa intencję użytkownika i granicę wobec podobnych zadań. Kroki, komendy i format wyniku należą do treści lub referencji.
-- Zachowuj istotne wyjątki środowiska, granice autoryzacji i sprawdzalne kryteria zakończenia. Usuwaj powtórzenia i ogólne porady, które nie zmieniają decyzji agenta.
-- Pisz własne instrukcje wykonawcze i referencje po angielsku, dokumentację użytkownika po polsku. Zachowuj język danych wejściowych oraz wymaganych komunikatów. Nie utrzymuj tłumaczeń tej samej procedury w dwóch miejscach.
+- The main `AGENTS.md` stays a map. Each link names a topic and a read condition. Open only the sources the task needs.
+- Keep coherent units of work. Split out variants and long references when they are not needed on every use. A short skill can stay a single file.
+- Each rule has one source. Read shared protocols as files, without invoking manual skills as dependencies. Keep the existing skill invocation mode and required approvals.
+- A skill description states the user intent and the boundary against similar tasks. Steps, commands and the output format belong in the body or references.
+- Keep relevant environment exceptions, authorization limits and checkable completion criteria. Remove repetition and general advice that does not change the agent's decisions.
 
-## Źródła i utrzymanie
+## Language
 
-Podstawą redakcji jest [seria For skill creators](https://agentskills.io/skill-creation/best-practices):
+Write every Markdown file in this repository in English: `AGENTS.md`, `README.md`, `docs/`, skills and their references. Keep the original language of input data, quoted examples and fixed messages a procedure requires, such as the Polish client message in `famicord-sync`. Keep one copy of each procedure, with no translations of it elsewhere.
 
-- [Quickstart](https://agentskills.io/skill-creation/quickstart): minimalna struktura i odkrywanie skilla.
-- [Best practices](https://agentskills.io/skill-creation/best-practices): wiedza domenowa, zakres i warunkowe referencje.
-- [Optimizing descriptions](https://agentskills.io/skill-creation/optimizing-descriptions): dobór na podstawie intencji i odróżnianie podobnych próśb.
-- [Evaluating skills](https://agentskills.io/skill-creation/evaluating-skills): ocena rezultatów i przebiegu rzeczywistych zadań.
-- [Using scripts](https://agentskills.io/skill-creation/using-scripts): automatyzacja powtarzanej pracy, gdy uzasadnia ją użycie.
+## Sources and maintenance
 
-Zmieniaj instrukcje na podstawie rozpoznanego problemu. Samo skrócenie tekstu lub poprawny frontmatter nie dowodzi lepszego działania. Przyszłe oceny powinny uwzględniać zarówno dobór skilla, jak i jakość wyniku. Automatyzację dodawaj dopiero dla powtarzanej pracy.
+The editing is based on the [For skill creators series](https://agentskills.io/skill-creation/best-practices):
 
-Źródła zewnętrzne są submodułami aktualizowanymi automatycznie do najnowszych wersji upstream. Nie edytuj ich plików. Ich dobór opisuje [upstream.md](../skills/upstream.md), a zasady aktualizacji [synchronization.md](../operations/synchronization.md).
+- [Quickstart](https://agentskills.io/skill-creation/quickstart): minimal structure and skill discovery.
+- [Best practices](https://agentskills.io/skill-creation/best-practices): domain knowledge, scope and conditional references.
+- [Optimizing descriptions](https://agentskills.io/skill-creation/optimizing-descriptions): selection by intent and telling similar requests apart.
+- [Evaluating skills](https://agentskills.io/skill-creation/evaluating-skills): judging the results and the course of real tasks.
+- [Using scripts](https://agentskills.io/skill-creation/using-scripts): automating repeated work when usage justifies it.
 
-## Ścieżki
+Change instructions based on an identified problem. A shorter text or valid frontmatter alone does not prove better behavior. Future evaluations should cover both skill selection and output quality. Add automation only for repeated work.
 
-Globalna mapa używa `~/.agents/...`, bo jest udostępniana przez symlinki poza repozytorium. Rozwijaj `~` do bieżącego katalogu domowego. W dokumentach i skillach używaj odnośników względem danego pliku.
+External sources are submodules that update automatically to the latest upstream versions. Do not edit their files. [upstream.md](../skills/upstream.md) describes their selection, and [synchronization.md](../operations/synchronization.md) the update rules.
 
-Plik już odczytany pozostaje w kontekście rozmowy. Podział ogranicza przyszłe odczyty. Obsługa katalogu skilli, metadanych i odświeżania zależy od [harnessu](../integrations/README.md).
+## Paths
+
+The global map uses `~/.agents/...` because symlinks expose it outside the repository. Expand `~` to the current home directory. In documents and skills, use links relative to the file.
+
+A file you have already read stays in the conversation context. The split limits future reads. Handling of the skill catalog, metadata and refreshes depends on the [harness](../integrations/README.md).

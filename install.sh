@@ -1,25 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-fail() { printf 'Błąd: %s\n' "$*" >&2; exit 1; }
-
-for dependency in git flock systemctl bash python3; do
-    command -v "$dependency" >/dev/null || fail "Brak polecenia $dependency. Zainstaluj je przed uruchomieniem instalatora."
-done
+# The only script to run by hand on a new computer. It checks the requirements,
+# updates the submodules, deploys the configuration with scripts/apply.sh and
+# starts a systemd timer that runs scripts/sync/run.sh every 15 minutes.
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-repo_dir=$(git -C "$script_dir/.." rev-parse --show-toplevel)
+# Apply without touching the timer first, e.g. during a migration rehearsal.
+if [[ ${1:-} == --no-sync ]]; then
+    shift
+    exec bash "$script_dir/scripts/apply.sh" "$@"
+fi
+[[ $# == 0 ]] || { printf 'Usage: install.sh [--no-sync [apply.sh options]]\n' >&2; exit 1; }
+
+fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
+
+for dependency in git flock systemctl bash python3; do
+    command -v "$dependency" >/dev/null || fail "Missing command $dependency. Install it before running the installer."
+done
+
+repo_dir=$(git -C "$script_dir" rev-parse --show-toplevel)
 git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir)
 state_dir="$git_dir/agents-sync"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 upstream_script="$repo_dir/.upstream/git-sync/git-sync"
 
-[[ $(uname -s) == Linux ]] || fail 'Instalator wymaga Linuksa z systemd.'
-systemctl --user show-environment >/dev/null || fail 'Brak dostępu do systemd użytkownika. Uruchom instalator w sesji docelowego użytkownika, bez sudo.'
-[[ $(git -C "$repo_dir" branch --show-current) == main ]] || fail 'Instalację uruchom na gałęzi main.'
-[[ $(git -C "$repo_dir" config --get branch.main.remote) == origin ]] || fail 'Gałąź main musi śledzić origin/main.'
-[[ $(git -C "$repo_dir" config --get branch.main.merge) == refs/heads/main ]] || fail 'Gałąź main musi śledzić origin/main.'
-git -C "$repo_dir" var GIT_AUTHOR_IDENT >/dev/null || fail 'Ustaw git config user.name oraz user.email.'
+[[ $(uname -s) == Linux ]] || fail 'The installer requires Linux with systemd.'
+systemctl --user show-environment >/dev/null || fail 'No access to the systemd user instance. Run the installer in the target user session, without sudo.'
+[[ $(git -C "$repo_dir" branch --show-current) == main ]] || fail 'Run the installation on the main branch.'
+[[ $(git -C "$repo_dir" config --get branch.main.remote) == origin ]] || fail 'The main branch must track origin/main.'
+[[ $(git -C "$repo_dir" config --get branch.main.merge) == refs/heads/main ]] || fail 'The main branch must track origin/main.'
+git -C "$repo_dir" var GIT_AUTHOR_IDENT >/dev/null || fail 'Set git config user.name and user.email.'
 
 python3 "$repo_dir/scripts/agents.py" validate
 python3 "$repo_dir/scripts/agents.py" guard
@@ -28,15 +38,15 @@ bash "$repo_dir/scripts/apply.sh" --dry-run
 export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=15}"
 export GCM_INTERACTIVE=never
-git -C "$repo_dir" ls-remote --exit-code origin refs/heads/main >/dev/null || fail 'Nie można pobrać origin/main. Sprawdź dostęp do repozytorium.'
+git -C "$repo_dir" ls-remote --exit-code origin refs/heads/main >/dev/null || fail 'Cannot fetch origin/main. Check access to the repository.'
 
 mkdir -p -- "$state_dir" "$unit_dir"
 exec 9>"$state_dir/lock"
-flock -w 30 9 || fail 'Synchronizacja jest w toku. Ponów instalację po jej zakończeniu.'
+flock -w 30 9 || fail 'Synchronization is in progress. Run the installation again after it finishes.'
 
 git -C "$repo_dir" submodule foreach --quiet --recursive '
     test -z "$(git status --porcelain)" || {
-        echo "Submoduł $displaypath zawiera niezapisane zmiany." >&2
+        echo "Submodule $displaypath has uncommitted changes." >&2
         exit 1
     }
 '
@@ -47,14 +57,14 @@ git -C "$repo_dir" config --local branch.main.sync true
 git -C "$repo_dir" config --local branch.main.syncNewFiles true
 git -C "$repo_dir" config --local branch.main.syncSkipHooks false
 git -C "$repo_dir" config --local branch.main.pushRemote origin
-printf -v autocommit_command 'bash %q' "$repo_dir/scripts/autocommit.sh"
+printf -v autocommit_command 'bash %q' "$repo_dir/scripts/sync/autocommit.sh"
 git -C "$repo_dir" config --local branch.main.autocommitscript "$autocommit_command"
 bash "$repo_dir/scripts/apply.sh"
 
 # systemd expands percent specifiers and, in ExecStart arguments, dollar signs.
 unit_quote() {
     local value=$1
-    [[ "$value" != *$'\n'* && "$value" != *$'\r'* && "$value" != *$'\t'* ]] || fail 'Ścieżka zawiera niedozwolony znak sterujący.'
+    [[ "$value" != *$'\n'* && "$value" != *$'\r'* && "$value" != *$'\t'* ]] || fail 'The path contains a forbidden control character.'
     value=${value//\\/\\\\}
     value=${value//\"/\\\"}
     value=${value//%/%%}
@@ -67,7 +77,7 @@ unit_quote() {
 }
 
 repo_unit=$(unit_quote "$repo_dir")
-runner_unit=$(unit_quote "$repo_dir/scripts/sync.sh" exec)
+runner_unit=$(unit_quote "$repo_dir/scripts/sync/run.sh" exec)
 bash_unit=$(unit_quote "$(command -v bash)" exec)
 
 cat >"$unit_dir/agents-sync.service" <<EOF
@@ -110,10 +120,10 @@ systemctl --user enable --now agents-sync.timer
 
 if command -v loginctl >/dev/null; then
     if ! loginctl --no-ask-password enable-linger "$(id -un)"; then
-        printf 'Timer działa w sesji użytkownika. Aby działał także po wylogowaniu, administrator musi wykonać: sudo loginctl enable-linger %s\n' "$(id -un)" >&2
+        printf 'The timer runs in the user session. To keep it running after logout, an administrator must run: sudo loginctl enable-linger %s\n' "$(id -un)" >&2
     fi
 else
-    printf 'Brak loginctl. Sprawdź, czy systemd użytkownika działa także po wylogowaniu.\n' >&2
+    printf 'loginctl is missing. Check that the systemd user instance keeps running after logout.\n' >&2
 fi
 
-printf 'Zaktualizowano wszystkie submoduły do najnowszych wersji upstream i włączono agents-sync.timer.\nPierwsza synchronizacja za około minutę, kolejne co 15 minut po zakończeniu poprzedniej.\nLogi: journalctl --user -u agents-sync.service\n'
+printf 'Updated all submodules to the latest upstream versions and enabled agents-sync.timer.\nThe first synchronization runs in about a minute, then every 15 minutes after the previous one ends.\nLogs: journalctl --user -u agents-sync.service\n'

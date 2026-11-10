@@ -1,11 +1,11 @@
 # VS Code
 
-VS Code w harnessie Local odczytuje osobiste skille z `~/.agents/skills`, więc adapter ich nie kopiuje. Adapter scala MCP w `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`, czyli w profilu użytkownika. Wspólne serwery trafiają do sekcji `servers` i używają odwołań `${env:NAZWA}`. Zachowujemy komentarze, końcowe przecinki, `inputs`, osobiste serwery i pozostałe ustawienia. Adapter nie zapisuje do `.vscode/mcp.json` w projekcie ani do przenośnego `.mcp.json`. Pluginy w `~/.vscode/agent-plugins` są poza zakresem, ponieważ działają wyłącznie w VS Code. Nie czytamy ich i nie zmieniamy.
+VS Code in the Local harness reads personal skills from `~/.agents/skills`, so the adapter does not copy them. The adapter merges MCP in `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`, which is the user profile. Shared servers go into the `servers` section and use `${env:NAME}` references. We keep comments, trailing commas, `inputs`, personal servers and other settings. The adapter does not write to a project's `.vscode/mcp.json` or to a portable `.mcp.json`. Plugins in `~/.vscode/agent-plugins` are out of scope, because they work only in VS Code. We do not read or change them.
 
-Instrukcje harnessu Local nie mają udokumentowanego pliku globalnego, dlatego dodaj je ręcznie w **Chat: Open Customizations > Instructions** dla harnessu Local jako instrukcję użytkownika:
+Local harness instructions have no documented global file, so add them by hand in **Chat: Open Customizations > Instructions** for the Local harness as a user instruction:
 
 ```text
 Read and follow ~/.agents/AGENTS.md before every task.
 ```
 
-Adapter obsługuje domyślny profil użytkownika na Linuxie. Nie zmienia VS Code Insiders ani innych profili. Zmienne `${env:NAZWA}` odczytuje proces VS Code. Aplikacja uruchomiona z menu może ich nie widzieć, jeśli są ustawione tylko w terminalu.
+The adapter supports the default user profile on Linux. It does not change VS Code Insiders or other profiles. The VS Code process reads `${env:NAME}` variables. An app started from the menu may not see them if they are set only in the terminal.

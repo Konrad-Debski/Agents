@@ -1,12 +1,12 @@
-# Mapa wiedzy
+# Knowledge map
 
-Wczytuj tylko źródła pasujące do bieżącego zadania.
+Load only the sources that match the current task.
 
-## Dokumentacja techniczna
+## Technical documentation
 
-- Biblioteki, frameworki, SDK, API, CLI i usługi chmurowe: czytaj [Context7](~/.agents/skills/context7-mcp/SKILL.md).
+- Libraries, frameworks, SDKs, APIs, CLIs and cloud services: read [Context7](~/.agents/skills/context7-mcp/SKILL.md).
 
-## Pisanie i procedury
+## Writing and procedures
 
-- Pisanie lub redakcja tekstu: czytaj [zasady stylu](~/.agents/skills/unslop/SKILL.md).
-- Tworzenie, aktualizacja lub scalanie PR: czytaj [create-pr](~/.agents/skills/create-pr/SKILL.md).
+- Writing or editing text: read the [style rules](~/.agents/skills/unslop/SKILL.md).
+- Creating, updating or merging a PR: read [create-pr](~/.agents/skills/create-pr/SKILL.md).

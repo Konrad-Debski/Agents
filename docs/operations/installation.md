@@ -1,29 +1,29 @@
-# Instalacja
+# Installation
 
-Wymagania: Linux z systemd użytkownika, Git, Bash, Python 3.11 lub nowszy oraz `flock` z util-linux. Git musi mieć ustawione `user.name` i `user.email`. Pobieranie i wysyłanie do `origin/main`, a także podpisywanie commitów, muszą działać bez interaktywnego logowania.
+Requirements: Linux with a systemd user instance, Git, Bash, Python 3.11 or newer, and `flock` from util-linux. Git must have `user.name` and `user.email` set. Fetching from and pushing to `origin/main`, and signing commits, must work without an interactive login.
 
-Repozytorium powinno zajmować katalog `~/.agents`. Nie klonuj go wewnątrz istniejącego `~/.agents/skills`. Przy istniejącej instalacji użyj `apply --dry-run` opisanego poniżej i rozwiąż zgłoszone kolizje.
+The repository should occupy the `~/.agents` directory. Do not clone it inside an existing `~/.agents/skills`. With an existing installation, use `apply --dry-run` described below and resolve the reported collisions.
 
-Na nowym komputerze, jako docelowy użytkownik, bez `sudo`:
+On a new computer, as the target user, without `sudo`:
 
 ```bash
 git clone --recurse-submodules git@github.com:Konrad-Debski/Agents.git ~/.agents
-bash "$HOME/.agents/scripts/install.sh"
+bash "$HOME/.agents/install.sh"
 bash "$HOME/.agents/scripts/doctor.sh"
 ```
 
-Instalator wykrywa harnessy po ich katalogach lub programach w `PATH`. Tworzy konfigurację i uruchamia `agents-sync.timer`. Wykonanie komendy ponownie aktualizuje instalację bez duplikatów. Zmiana lokalizacji repozytorium wymaga ponownej instalacji. Przy istniejących kolizjach najpierw scal własne instrukcje lub nadaj lokalnemu MCP inną nazwę. Instalator nie zastępuje odmiennego pliku instrukcji ani obcego symlinku.
+The installer detects harnesses by their directories or by their programs in `PATH`. It creates the configuration and starts `agents-sync.timer`. Running the command again updates the installation without duplicates. Moving the repository requires a reinstall. With existing collisions, first merge your own instructions or give the local MCP server a different name. The installer does not replace a different instructions file or a foreign symlink.
 
-Instalacja samej konfiguracji bez systemd:
+Installing only the configuration, without systemd:
 
 ```bash
-bash "$HOME/.agents/scripts/install.sh" --no-sync --dry-run
-bash "$HOME/.agents/scripts/install.sh" --no-sync
+bash "$HOME/.agents/install.sh" --no-sync --dry-run
+bash "$HOME/.agents/install.sh" --no-sync
 ```
 
-Skrypty korzystają ze standardowej biblioteki Pythona, bez instalacji pakietów. Automatyczny harmonogram obsługuje obecnie Linux. macOS i Windows nie mają instalatora harmonogramu.
+The scripts use the Python standard library and install no packages. The automatic schedule currently supports Linux. macOS and Windows have no schedule installer.
 
-## Wdrażanie i diagnostyka
+## Apply and diagnostics
 
 ```bash
 bash "$HOME/.agents/scripts/apply.sh" --dry-run
@@ -31,10 +31,10 @@ bash "$HOME/.agents/scripts/apply.sh"
 bash "$HOME/.agents/scripts/doctor.sh"
 ```
 
-`--dry-run` nie zapisuje konfiguracji ani stanu. Wdrażanie najpierw sprawdza wszystkie kolizje, następnie zapisuje pliki atomowo i tworzy kopie poprzednich wersji. Obsłużony błąd zapisu powoduje wycofanie wcześniejszych zmian z tego przebiegu. Ręcznie zmienione zarządzane wpisy zatrzymują wdrażanie. Edytuj definicję źródłową zamiast wygenerowanego wpisu.
+`--dry-run` writes no configuration or state. Apply first checks all collisions, then writes files atomically and backs up the previous versions. A handled write error rolls back the earlier changes from that run. Managed entries changed by hand stop the apply. Edit the source definition instead of the generated entry.
 
-Nie uruchamiaj wdrażania równocześnie ze zmianą konfiguracji w interfejsie harnessu. Blokada chroni przed drugim procesem `apply`, ale zewnętrzne aplikacje jej nie znają. Nagłe wyłączenie komputera podczas zapisu wielu plików może wymagać odtworzenia ich z kopii zapasowych.
+Do not run apply while changing configuration in a harness UI. The lock guards against a second `apply` process, but external apps do not know about it. A sudden shutdown while writing several files may require restoring them from backups.
 
-`doctor` sprawdza plan wdrażania, brakujące programy i zmienne środowiskowe, zerwane symlinki oraz stan timera. Nie łączy się z MCP, nie weryfikuje logowania OAuth i nie testuje zachowania modeli.
+`doctor` checks the apply plan, missing programs and environment variables, broken symlinks and the timer state. It does not connect to MCP servers, verify OAuth logins or test model behavior.
 
-Ustawienia maszyny i sekrety opisuje [configuration.md](configuration.md), a harmonogram i submoduły [synchronization.md](synchronization.md).
+[configuration.md](configuration.md) describes machine settings and secrets, and [synchronization.md](synchronization.md) the schedule and submodules.

@@ -20,14 +20,14 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 BEGIN = '# BEGIN agents managed MCP\n'
 END = '# END agents managed MCP\n'
-ALLOWED_FILES = {'AGENTS.md', 'README.md', '.gitignore', '.gitmodules', 'package.json'}
+ALLOWED_FILES = {'AGENTS.md', 'README.md', '.gitignore', '.gitmodules', 'package.json', 'install.sh'}
 ALLOWED_DIRS = {'skills', 'mcp', 'adapters', 'scripts', 'docs', 'tests', '.upstream'}
 SECRET_NAME = re.compile(r'(^|/)(\.env(?:\..*)?|credentials(?:\..*)?|auth\.json|id_rsa|id_ed25519|.*\.pem|.*\.key)$', re.I)
 LOCAL_NAME = re.compile(r'(^|/)(?:\.cache|__pycache__)(?:/|$)|\.(?:log|tar|zip|gz|pyc|pyo)$', re.I)
 SECRET_VALUE = re.compile(rb'-----BEGIN (?:[A-Z ]*PRIVATE KEY)-----|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-[A-Za-z0-9_-]{32,})\b')
 MANUAL_INSTRUCTIONS = {
-    'cursor': 'Cursor: w Customize > Rules dodaj: Read and follow ~/.agents/AGENTS.md before every task.',
-    'vscode': 'VS Code: dla harnessu Local dodaj w Chat: Open Customizations > Instructions instrukcję User z treścią: Read and follow ~/.agents/AGENTS.md before every task.',
+    'cursor': 'Cursor: in Customize > Rules add: Read and follow ~/.agents/AGENTS.md before every task.',
+    'vscode': 'VS Code: for the Local harness, in Chat: Open Customizations > Instructions add a User instruction with the text: Read and follow ~/.agents/AGENTS.md before every task.',
 }
 
 
@@ -42,10 +42,10 @@ def require(condition, message):
 
 def load_json(path, default=None):
     if not path.exists():
-        require(default is not None, f'Brak pliku {path}')
+        require(default is not None, f'Missing file {path}')
         return copy.deepcopy(default)
     value = json.loads(path.read_text())
-    require(isinstance(value, dict), f'{path}: wymagany obiekt JSON')
+    require(isinstance(value, dict), f'{path}: a JSON object is required')
     return value
 
 
@@ -55,48 +55,48 @@ def json_bytes(value):
 
 def registry():
     data = load_json(ROOT / 'mcp/servers.json')
-    require(data.get('version') == 1 and isinstance(data.get('servers'), dict), 'Nieobsługiwany rejestr MCP')
+    require(data.get('version') == 1 and isinstance(data.get('servers'), dict), 'Unsupported MCP registry')
     for name, server in data['servers'].items():
-        require(re.fullmatch(r'[A-Za-z0-9_-]+', name), f'Niepoprawna nazwa MCP: {name}')
-        require(isinstance(server, dict), f'{name}: wymagana definicja serwera')
+        require(re.fullmatch(r'[A-Za-z0-9_-]+', name), f'Invalid MCP name: {name}')
+        require(isinstance(server, dict), f'{name}: a server definition is required')
         transport = server.get('transport')
         fields = {'transport', 'harnesses', 'requires_env'}
         if transport == 'stdio':
             fields |= {'command', 'args', 'env_vars'}
-            require(isinstance(server.get('command'), str) and server['command'], f'{name}: brak command')
-            require(not server['command'].startswith(('/', '~')), f'{name}: command musi być przenośne')
+            require(isinstance(server.get('command'), str) and server['command'], f'{name}: missing command')
+            require(not server['command'].startswith(('/', '~')), f'{name}: command must be portable')
         elif transport == 'http':
             fields |= {'url', 'header_env', 'oauth'}
-            require(isinstance(server.get('url'), str), f'{name}: brak url')
+            require(isinstance(server.get('url'), str), f'{name}: missing url')
             oauth = server.get('oauth', {'client_id': ''})
             require(isinstance(oauth, dict) and isinstance(oauth.get('client_id'), str)
                     and not (set(oauth) - {'client_id', 'client_secret_env', 'scopes', 'auth_server_metadata_url'}),
-                    f'{name}: oauth wymaga client_id i przyjmuje client_secret_env, scopes, auth_server_metadata_url')
+                    f'{name}: oauth requires client_id and accepts client_secret_env, scopes, auth_server_metadata_url')
             require(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(oauth.get('client_secret_env', '_'))),
-                    f'{name}: client_secret_env musi wskazywać nazwę zmiennej')
+                    f'{name}: client_secret_env must name a variable')
             scopes = oauth.get('scopes', [])
             require(isinstance(scopes, list) and all(isinstance(v, str) and v and not re.search(r'\s', v) for v in scopes),
-                    f'{name}: scopes musi być listą napisów bez odstępów')
+                    f'{name}: scopes must be a list of strings without whitespace')
             require(str(oauth.get('auth_server_metadata_url', 'https://')).startswith('https://'),
-                    f'{name}: auth_server_metadata_url musi używać https')
+                    f'{name}: auth_server_metadata_url must use https')
             url = urlsplit(server['url'])
             require(url.scheme in {'https', 'http'} and url.hostname and not url.username
                     and not url.password and not url.query and not url.fragment,
-                    f'{name}: URL bez danych logowania, parametrów i fragmentu')
+                    f'{name}: the URL must have no credentials, query or fragment')
             headers = server.get('header_env', {})
             require(isinstance(headers, dict) and all(isinstance(k, str) and isinstance(v, str)
                     and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for k, v in headers.items()),
-                    f'{name}: header_env musi wskazywać nazwy zmiennych')
+                    f'{name}: header_env must name variables')
         else:
-            raise ConfigError(f'{name}: obsługiwane transporty to stdio i http')
-        require(not (set(server) - fields), f'{name}: nieznane pola konfiguracji')
+            raise ConfigError(f'{name}: supported transports are stdio and http')
+        require(not (set(server) - fields), f'{name}: unknown configuration fields')
         for key in ('args', 'env_vars', 'requires_env', 'harnesses'):
             values = server.get(key, [])
-            require(isinstance(values, list) and all(isinstance(v, str) for v in values), f'{name}: {key} musi być listą napisów')
+            require(isinstance(values, list) and all(isinstance(v, str) for v in values), f'{name}: {key} must be a list of strings')
             if key in {'env_vars', 'requires_env'}:
-                require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for v in values), f'{name}: niepoprawna nazwa zmiennej')
+                require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for v in values), f'{name}: invalid variable name')
         if 'harnesses' in server:
-            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode', 'vscode'}, f'{name}: nieznany harness')
+            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode', 'vscode'}, f'{name}: unknown harness')
     return data['servers']
 
 
@@ -106,10 +106,10 @@ def git(*args):
 
 def check_path(name, blob):
     first = name.split('/')[0]
-    require(name in ALLOWED_FILES or first in ALLOWED_DIRS, f'Poza zakresem synchronizacji: {name}')
-    require(not SECRET_NAME.search(name), f'Plik lokalny lub sekret poza synchronizacją: {name}')
-    require(not LOCAL_NAME.search(name), f'Plik wygenerowany poza synchronizacją: {name}')
-    require(not SECRET_VALUE.search(blob), f'Podejrzenie sekretu w {name}; usuń go przed synchronizacją')
+    require(name in ALLOWED_FILES or first in ALLOWED_DIRS, f'Outside the synchronization scope: {name}')
+    require(not SECRET_NAME.search(name), f'Local file or secret excluded from synchronization: {name}')
+    require(not LOCAL_NAME.search(name), f'Generated file excluded from synchronization: {name}')
+    require(not SECRET_VALUE.search(blob), f'Possible secret in {name}; remove it before synchronizing')
 
 
 def guard(staged=False):
@@ -240,7 +240,7 @@ def parse_jsonc(text):
                 position = len(text) if end < 0 else end
             elif text.startswith('/*', position):
                 end = text.find('*/', position + 2)
-                require(end >= 0, 'JSONC: niedomknięty komentarz')
+                require(end >= 0, 'JSONC: unclosed comment')
                 position = end + 2
             else:
                 break
@@ -249,13 +249,13 @@ def parse_jsonc(text):
         nonlocal position
         skip()
         start = position
-        require(position < len(text), 'JSONC: niekompletny dokument')
+        require(position < len(text), 'JSONC: incomplete document')
         opening = text[position]
         if opening not in '{[':
             value, position = decoder.raw_decode(text, position)
-            require(value is None or isinstance(value, (str, int, float, bool)), 'JSONC: niepoprawna wartość')
+            require(value is None or isinstance(value, (str, int, float, bool)), 'JSONC: invalid value')
             require(not isinstance(value, float) or value not in (float('inf'), float('-inf')) and value == value,
-                    'JSONC: niepoprawna liczba')
+                    'JSONC: invalid number')
             return JsoncNode(value, start, position)
         closing = '}' if opening == '{' else ']'
         value = {} if opening == '{' else []
@@ -265,11 +265,11 @@ def parse_jsonc(text):
         while position < len(text) and text[position] != closing:
             key_start = position
             if opening == '{':
-                require(text[position] == '"', 'JSONC: klucz musi być napisem')
+                require(text[position] == '"', 'JSONC: a key must be a string')
                 key, position = decoder.raw_decode(text, position)
-                require(key not in value, 'JSONC: powtórzony klucz')
+                require(key not in value, 'JSONC: duplicate key')
                 skip()
-                require(position < len(text) and text[position] == ':', 'JSONC: brak dwukropka')
+                require(position < len(text) and text[position] == ':', 'JSONC: missing colon')
                 position += 1
             node = read()
             if opening == '{':
@@ -284,13 +284,13 @@ def parse_jsonc(text):
                 break
             position += 1
             skip()
-        require(position < len(text) and text[position] == closing, 'JSONC: niepoprawne zamknięcie')
+        require(position < len(text) and text[position] == closing, 'JSONC: invalid closing bracket')
         position += 1
         return JsoncNode(value, start, position, properties)
 
     node = read()
     skip()
-    require(position == len(text) and isinstance(node.value, dict), 'JSONC: wymagany jeden obiekt')
+    require(position == len(text) and isinstance(node.value, dict), 'JSONC: a single object is required')
     return node
 
 
@@ -308,7 +308,7 @@ def jsonc_property(text, section, key, value=None, remove=False):
                 nested = {remaining: nested}
             return jsonc_property(text, section[:index], part, nested)
         node = child
-    require(isinstance(node.value, dict), 'JSONC: sekcja musi być obiektem')
+    require(isinstance(node.value, dict), 'JSONC: a section must be an object')
     for index, prop in enumerate(node.properties):
         name, start, child, comma = prop
         if name != key:
@@ -333,21 +333,21 @@ def jsonc_property(text, section, key, value=None, remove=False):
 
 def opencode_servers(text):
     mcp = parse_jsonc(text).value.get('mcp', {})
-    require(isinstance(mcp, dict), 'OpenCode: mcp musi być obiektem')
+    require(isinstance(mcp, dict), 'OpenCode: mcp must be an object')
     # New files use v2; existing nonempty flat maps keep v1 compatibility.
     native = not mcp or any(key in mcp and not (isinstance(mcp[key], dict) and
                      ('type' in mcp[key] or 'enabled' in mcp[key])) for key in ('servers', 'timeout'))
     if native:
-        require(not (set(mcp) - {'servers', 'timeout'}), 'OpenCode: mieszany lub nieznany format mcp')
+        require(not (set(mcp) - {'servers', 'timeout'}), 'OpenCode: mixed or unknown mcp format')
         servers = mcp.get('servers', {})
-        require(isinstance(servers, dict), 'OpenCode: mcp.servers musi być obiektem')
+        require(isinstance(servers, dict), 'OpenCode: mcp.servers must be an object')
         return servers, ('mcp', 'servers')
     return mcp, ('mcp',)
 
 
 def vscode_servers(text):
     servers = parse_jsonc(text).value.get('servers', {})
-    require(isinstance(servers, dict), 'VS Code: servers musi być obiektem')
+    require(isinstance(servers, dict), 'VS Code: servers must be an object')
     return servers, ('servers',)
 
 
@@ -356,8 +356,8 @@ def merge_jsonc_servers(text, old, desired, read, label):
     current, section = read(text)
     for name, value in old.items():
         if name in current:
-            require(current.get(name) == value, f'{label}: ręcznie zmieniony zarządzany serwer {name}')
-    require(not ((set(current) - set(old)) & set(desired)), f'{label}: kolizja nazwy MCP')
+            require(current.get(name) == value, f'{label}: managed server {name} was changed by hand')
+    require(not ((set(current) - set(old)) & set(desired)), f'{label}: MCP name collision')
     for name in old:
         if name not in desired:
             text = jsonc_property(text, section, name, remove=True)
@@ -365,7 +365,7 @@ def merge_jsonc_servers(text, old, desired, read, label):
         if current.get(name) != value:
             text = jsonc_property(text, section, name, value)
     expected = {key: value for key, value in current.items() if key not in old} | desired
-    require(read(text)[0] == expected, f'{label}: niepoprawny wynik JSONC')
+    require(read(text)[0] == expected, f'{label}: invalid JSONC result')
     return text.encode()
 
 
@@ -374,7 +374,7 @@ def merge_opencode(text, old, desired):
 
 
 def merge_mcp(path, fmt, old, desired):
-    require(not path.is_symlink(), f'{path}: konfiguracja jest symlinkiem; scalenie wymaga zwykłego pliku')
+    require(not path.is_symlink(), f'{path}: the configuration is a symlink; merging requires a regular file')
     text = path.read_text() if path.exists() else ''
     if fmt == 'opencode':
         return merge_opencode(text, old, desired)
@@ -382,35 +382,35 @@ def merge_mcp(path, fmt, old, desired):
         return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code')
     if fmt == 'toml':
         tomllib.loads(text)
-        require(text.count(BEGIN) == text.count(END) <= 1, f'{path}: uszkodzone znaczniki')
+        require(text.count(BEGIN) == text.count(END) <= 1, f'{path}: damaged markers')
         managed = ''
         if BEGIN in text:
             start = text.index(BEGIN)
             stop = text.index(END) + len(END)
-            require(stop > start, f'{path}: odwrócone znaczniki')
+            require(stop > start, f'{path}: markers in reverse order')
             managed = text[start:stop]
             text = text[:start] + text[stop:]
-        require(tomllib.loads(managed).get('mcp_servers', {}) == old, f'{path}: ręcznie zmieniony blok zarządzany lub brak stanu')
+        require(tomllib.loads(managed).get('mcp_servers', {}) == old, f'{path}: managed block was changed by hand or state is missing')
         remaining = tomllib.loads(text).get('mcp_servers', {})
         # A local [mcp_servers.NAME.oauth] table may hold the client secret of a managed server.
         local = {name: remaining[name] for name in set(remaining) & set(desired)}
         require(all(set(value) == {'oauth'} and 'oauth' not in desired[name] for name, value in local.items()),
-                f'{path}: kolizja nazwy MCP')
+                f'{path}: MCP name collision')
         result = text.rstrip() + ('\n\n' if text.strip() and desired else '') + toml_block(desired)
         expected = {**remaining, **{name: value | local.get(name, {}) for name, value in desired.items()}}
-        require(tomllib.loads(result).get('mcp_servers', {}) == expected, f'{path}: niepoprawny wynik TOML')
+        require(tomllib.loads(result).get('mcp_servers', {}) == expected, f'{path}: invalid TOML result')
         return result.encode()
     data = json.loads(text) if text.strip() else {}
-    require(isinstance(data, dict), f'{path}: wymagany obiekt JSON')
+    require(isinstance(data, dict), f'{path}: a JSON object is required')
     current = data.get('mcpServers', {})
-    require(isinstance(current, dict), f'{path}: mcpServers musi być obiektem')
+    require(isinstance(current, dict), f'{path}: mcpServers must be an object')
     for name, value in old.items():
         if name in current:
             # `claude mcp add --client-secret` rewrites the entry in a reduced form; restore it.
             require(current.get(name) == value or within(current[name], desired.get(name)),
-                    f'{path}: ręcznie zmieniony zarządzany serwer {name}')
+                    f'{path}: managed server {name} was changed by hand')
         current.pop(name, None)
-    require(not (set(current) & set(desired)), f'{path}: kolizja nazwy MCP')
+    require(not (set(current) & set(desired)), f'{path}: MCP name collision')
     if current or desired or 'mcpServers' in data:
         data['mcpServers'] = {**current, **desired}
     return json_bytes(data)
@@ -432,7 +432,7 @@ def atomic_write(path, content, mode=0o600):
 def snapshot(path):
     if path.is_symlink():
         return ('link', os.readlink(path), None)
-    require(not path.exists() or path.is_file(), f'{path}: kolizja z katalogiem')
+    require(not path.exists() or path.is_file(), f'{path}: collision with a directory')
     return ('file', path.read_bytes(), path.stat().st_mode & 0o777) if path.exists() else ('missing', None, None)
 
 
@@ -466,21 +466,21 @@ def adapter_directory(name, adapter, home):
 def prepare():
     home, config, state_dir = locations()
     local = load_json(config / 'local.json', {})
-    require(not (set(local) - {'harnesses', 'disabled_servers', 'disabled_servers_by_harness'}), 'Nieznane pola local.json')
+    require(not (set(local) - {'harnesses', 'disabled_servers', 'disabled_servers_by_harness'}), 'Unknown fields in local.json')
     adapters = {p.parent.name: load_json(p) for p in sorted((ROOT / 'adapters').glob('*/adapter.json'))}
     selected = local.get('harnesses', [name for name, adapter in adapters.items()
                        if adapter_directory(name, adapter, home).exists() or shutil.which(adapter['command'])])
-    require(isinstance(selected, list) and all(name in adapters for name in selected), 'Nieznany harness w local.json')
+    require(isinstance(selected, list) and all(name in adapters for name in selected), 'Unknown harness in local.json')
     disabled = local.get('disabled_servers', [])
-    require(isinstance(disabled, list) and all(isinstance(s, str) for s in disabled), 'disabled_servers musi być listą nazw')
+    require(isinstance(disabled, list) and all(isinstance(s, str) for s in disabled), 'disabled_servers must be a list of names')
     scoped_disabled = local.get('disabled_servers_by_harness', {})
     require(isinstance(scoped_disabled, dict) and all(
         name in adapters and isinstance(names, list) and all(isinstance(s, str) for s in names)
         for name, names in scoped_disabled.items()),
-        'disabled_servers_by_harness musi przypisywać harnessom listy nazw')
+        'disabled_servers_by_harness must map harnesses to lists of names')
     servers = registry()
     previous = load_json(state_dir / 'managed.json', {'version': 1, 'mcp': {}, 'links': {}})
-    require(previous.get('version') == 1, 'Nieobsługiwany stan adapterów')
+    require(previous.get('version') == 1, 'Unsupported adapter state')
     following = {'version': 1, 'mcp': {}, 'links': {}}
     changes = {}
     notices = []
@@ -490,9 +490,9 @@ def prepare():
         value = str(source)
         before = snapshot(path)
         if before[0] == 'link':
-            require(os.path.abspath(path.parent / before[1]) == value, f'{path}: obcy symlink; zachowaj i scal go ręcznie')
+            require(os.path.abspath(path.parent / before[1]) == value, f'{path}: foreign symlink; keep it and merge it by hand')
         elif before[0] == 'file':
-            require(source.is_file() and before[1] == source.read_bytes(), f'{path}: istniejące instrukcje; scal je z AGENTS.md i zachowaj lokalną kopię przed usunięciem pliku')
+            require(source.is_file() and before[1] == source.read_bytes(), f'{path}: existing instructions; merge them into AGENTS.md and keep a local copy before deleting the file')
         if before != ('link', value, None):
             changes[path] = (before, ('link', value, None))
         following['links'][str(path)] = value
@@ -513,7 +513,7 @@ def prepare():
             instruction = base / adapter['instructions']
             for variable in ('OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT'):
                 if os.environ.get(variable):
-                    notices.append(f'OpenCode: {variable} może nadpisać konfigurację globalną; adapter nie zmienia tej dodatkowej warstwy.')
+                    notices.append(f'OpenCode: {variable} can override the global configuration; the adapter does not change this extra layer.')
         elif name == 'vscode':
             base = adapter_directory(name, adapter, home)
             config_path = base / 'mcp.json'
@@ -545,21 +545,21 @@ def prepare():
             if other.exists():
                 owned = previous['mcp'].get(str(other), {}).get('servers', {})
                 remaining, _ = opencode_servers(merge_mcp(other, 'opencode', owned, {}).decode())
-                require(not (set(remaining) & set(desired)), f'{other}: kolizja MCP w drugim pliku OpenCode')
+                require(not (set(remaining) & set(desired)), f'{other}: MCP collision in the second OpenCode file')
         content = merge_mcp(config_path, adapter['format'], old, desired)
         for server in desired:
             oauth = servers[server].get('oauth', {})
             if 'client_secret_env' not in oauth:
                 continue
             if name == 'codex' and not tomllib.loads(content.decode())['mcp_servers'][server].get('oauth', {}).get('client_secret'):
-                notices.append(f'Codex: dodaj w {config_path} poza blokiem zarządzanym sekcję [mcp_servers.{server}.oauth] '
-                               f'z client_id = "{oauth["client_id"]}" i client_secret, potem uruchom: codex mcp login {server}')
+                notices.append(f'Codex: outside the managed block in {config_path}, add a [mcp_servers.{server}.oauth] section '
+                               f'with client_id = "{oauth["client_id"]}" and client_secret, then run: codex mcp login {server}')
             # Claude Code keeps the secret in its credential store; the plain-text store exists only on Linux.
             if name == 'claude-code' and not any(entry.startswith(server + '|') for entry in
                                                  load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
-                notices.append(f'Claude Code: zapisz sekret OAuth raz na komputerze: claude mcp remove -s user {server}; '
+                notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {server}; '
                                f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
-                               f'{server} {servers[server]["url"]}; potem ponów apply.sh')
+                               f'{server} {servers[server]["url"]}; then run apply.sh again')
         before = snapshot(config_path)
         if before[0] != 'missing' or desired:
             if before[1] != content:
@@ -578,7 +578,7 @@ def prepare():
         if key not in following['links']:
             path = Path(key)
             before = snapshot(path)
-            require(before == ('link', target, None) or before[0] == 'missing', f'{path}: zmienione zarządzane dowiązanie')
+            require(before == ('link', target, None) or before[0] == 'missing', f'{path}: managed link was changed')
             if before[0] != 'missing':
                 changes[path] = (before, ('missing', None, None))
     return changes, following, notices, selected, servers, disabled
@@ -595,10 +595,10 @@ def apply(dry_run):
             fcntl.flock(handle, fcntl.LOCK_EX)
         changes, following, notices, selected, _, _ = prepare()
         for path in changes:
-            print(('Plan: ' if dry_run else 'Zmieniam: ') + str(path))
+            print(('Plan: ' if dry_run else 'Changing: ') + str(path))
         for notice in notices:
             print(notice)
-        print('Harnessy: ' + (', '.join(selected) or 'brak, ustaw harnesses w local.json'))
+        print('Harnesses: ' + (', '.join(selected) or 'none, set harnesses in local.json'))
         if dry_run:
             return
         state_path = state_dir / 'managed.json'
@@ -610,7 +610,7 @@ def apply(dry_run):
         backup_dir = state_dir / 'backups' / str(time.time_ns())
         try:
             for path, (before, after) in changes.items():
-                require(snapshot(path) == before, f'{path}: plik zmienił się podczas wdrażania; ponów')
+                require(snapshot(path) == before, f'{path}: the file changed during apply; try again')
                 if before[0] != 'missing':
                     backup_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
                     backup = backup_dir / hashlib.sha256(str(path).encode()).hexdigest()
@@ -631,15 +631,15 @@ def doctor():
     _, config, _ = locations()
     scoped_disabled = load_json(config / 'local.json', {}).get('disabled_servers_by_harness', {})
     problems = []
-    print('Repozytorium: ' + str(ROOT))
-    print('Harnessy: ' + (', '.join(selected) or 'brak'))
+    print('Repository: ' + str(ROOT))
+    print('Harnesses: ' + (', '.join(selected) or 'none'))
     for name, server in servers.items():
         if name in disabled or not any(
                 harness in server.get('harnesses', selected)
                 and name not in scoped_disabled.get(harness, []) for harness in selected):
             continue
         if server['transport'] == 'stdio' and not shutil.which(server['command']):
-            problems.append(f'{name}: brak programu {server["command"]}')
+            problems.append(f'{name}: missing program {server["command"]}')
         secret = server.get('oauth', {}).get('client_secret_env')
         # Only these harnesses read the client secret from the environment.
         referenced = [secret] if secret and any(
@@ -648,20 +648,20 @@ def doctor():
         for variable in sorted(set(server.get('requires_env', []) + server.get('env_vars', []) + referenced
                                    + list(server.get('header_env', {}).values()))):
             if not os.environ.get(variable):
-                problems.append(f'{name}: brak zmiennej {variable}')
+                problems.append(f'{name}: missing variable {variable}')
     for path in changes:
-        problems.append(f'{path}: wymaga apply.sh')
+        problems.append(f'{path}: needs apply.sh')
     for skill in (ROOT / 'skills').iterdir():
         for path in (skill, skill / 'SKILL.md'):
             if path.is_symlink() and not path.exists():
-                problems.append(f'{path}: zerwane dowiązanie; zainicjalizuj submoduły')
+                problems.append(f'{path}: broken link; initialize the submodules')
     if sys.platform == 'linux' and shutil.which('systemctl'):
         result = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'agents-sync.timer'], capture_output=True)
-        print('Timer: ' + ('aktywny' if result.returncode == 0 else 'nieaktywny'))
-    print('T3: korzysta z konfiguracji uruchamianego harnessu; sprawdź MCP w nowej sesji. Integracje zarządzane przez T3 pozostają lokalne.')
+        print('Timer: ' + ('active' if result.returncode == 0 else 'inactive'))
+    print('T3: uses the configuration of the harness it launches; check MCP in a new session. Integrations managed by T3 stay local.')
     for line in notices + problems:
         print(line)
-    require(not problems, 'Diagnostyka wykryła problemy wymienione powyżej')
+    require(not problems, 'Diagnostics found the problems listed above')
 
 
 def main():
@@ -681,8 +681,8 @@ def main():
             apply(args.dry_run)
     except (ConfigError, OSError, ValueError, subprocess.CalledProcessError) as error:
         # Do not echo malformed configuration: it can contain local credentials.
-        message = str(error) if isinstance(error, ConfigError) else type(error).__name__ + ': sprawdź pliki konfiguracji i dostęp do nich'
-        print('Błąd: ' + message, file=sys.stderr)
+        message = str(error) if isinstance(error, ConfigError) else type(error).__name__ + ': check the configuration files and access to them'
+        print('Error: ' + message, file=sys.stderr)
         return 1
     return 0
 

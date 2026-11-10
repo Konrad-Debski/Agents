@@ -9,7 +9,7 @@ state_dir="$git_dir/agents-sync"
 upstream_script="$repo_dir/.upstream/git-sync/git-sync"
 
 [[ -d "$state_dir" && -f "$upstream_script" ]] || {
-    printf 'Najpierw wykonaj bash scripts/install-sync.sh.\n' >&2
+    printf 'Run bash install.sh first.\n' >&2
     exit 1
 }
 
@@ -18,11 +18,11 @@ flock -n 9 || exit 0
 
 branch=$(git branch --show-current)
 if [[ -z "$branch" ]]; then
-    printf 'Brak aktywnej gałęzi. Sprawdź repozytorium i dokończ ewentualny rebase przed synchronizacją.\n' >&2
+    printf 'No active branch. Check the repository and finish any rebase before synchronizing.\n' >&2
     exit 1
 fi
 if [[ "$branch" != main ]]; then
-    printf 'Pomijam synchronizację. Bieżąca gałąź nie jest main.\n'
+    printf 'Skipping synchronization. The current branch is not main.\n'
     exit 0
 fi
 
@@ -37,7 +37,7 @@ python3 scripts/agents.py validate
 bash "$upstream_script" check
 git submodule foreach --quiet --recursive '
     if test -n "$(git status --porcelain)"; then
-        echo "Submoduł $displaypath zawiera niezapisane zmiany. Zapisz je w jego repozytorium." >&2
+        echo "Submodule $displaypath has uncommitted changes. Commit them in its repository." >&2
         exit 1
     fi
 '
