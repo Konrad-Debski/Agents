@@ -7,7 +7,7 @@ Wczytuj przy dodawaniu lub aktualizowaniu zewnętrznych skilli. Źródła są su
 | Źródło | Symlinki w `skills/` | Zastosowanie |
 | --- | --- | --- |
 | [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Redakcja tekstów |
-| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-review` | Mały zakres implementacji i przegląd zmian w motywie |
+| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-audit`, `ponytail-review` | Mały zakres implementacji, przegląd zmian i audyt całego repozytorium |
 | [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Wymagania dla sekcji, instrukcje dla agentów, diagnoza błędów, opisy PR, retrospektywa, przekazanie pracy, TDD i projektowanie modułów |
 
 `grilling` jest zależnością aktualnego `grill-me`. Pozostawienie samego aliasu uniemożliwiłoby wykonanie jego procedury. `diagnosing-bugs` ma własny szablon skryptu, a `writing-for-agents` plik `SKILL-MECHANICS.md`; symlink całego katalogu udostępnia także te zasoby.

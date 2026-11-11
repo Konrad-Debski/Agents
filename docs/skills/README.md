@@ -22,6 +22,7 @@ Użyj tej mapy, gdy harness nie pokazuje katalogu skilli. Otwórz procedurę pas
 | Projektowanie interfejsów i poprawa testowalności | [codebase-design](../../skills/codebase-design/SKILL.md) | Dobór przez agenta | Zasady projektowania modułów |
 | Implementacja z wykorzystaniem istniejących wzorców | [ponytail](../../skills/ponytail/SKILL.md) | Dobór przez agenta | Mały, kompletny zakres zmian |
 | Przegląd poprawności i zbędnego kodu | [ponytail-review](../../skills/ponytail-review/SKILL.md) | Dobór przez agenta | Raport przeglądu, bez zmian kodu |
+| Audyt całego repozytorium | [ponytail-audit](../../skills/ponytail-audit/SKILL.md) | Dobór przez agenta | Raport błędów, ryzyka i zbędnego kodu, bez zmian kodu |
 
 ## Wspólne referencje
 
