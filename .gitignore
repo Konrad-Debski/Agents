@@ -5,6 +5,7 @@
 !/.gitignore
 !/.gitmodules
 !/package.json
+!/install.sh
 !/skills/
 !/mcp/
 !/adapters/

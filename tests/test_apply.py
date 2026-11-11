@@ -248,7 +248,7 @@ class ApplyTests(unittest.TestCase):
                          {'Authorization': '${env:CONTEXT7_AUTHORIZATION}'})
         self.env.pop('CONTEXT7_AUTHORIZATION')
         result = self.run_apply(action='doctor', success=False)
-        self.assertIn('context7: brak zmiennej CONTEXT7_AUTHORIZATION', result.stdout)
+        self.assertIn('context7: missing variable CONTEXT7_AUTHORIZATION', result.stdout)
 
     def test_deleted_managed_json_entries_are_recreated(self):
         self.run_apply()
@@ -521,7 +521,7 @@ class ApplyTests(unittest.TestCase):
         second = self.opencode_config('{/* Higher precedence */ "model": "personal/model"}', 'opencode.jsonc')
         first_before, second_before = first.read_bytes(), second.read_bytes()
         result = self.run_apply(success=False)
-        self.assertIn('drugim pliku OpenCode', result.stderr)
+        self.assertIn('second OpenCode file', result.stderr)
         self.assertEqual((first_before, second_before), (first.read_bytes(), second.read_bytes()))
         self.assertFalse((self.config / 'opencode/AGENTS.md').exists())
 
@@ -566,7 +566,7 @@ class ApplyTests(unittest.TestCase):
         result = subprocess.run([shutil.which('python3'), str(self.repo / 'scripts/agents.py'), 'apply'],
                                 env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Harnessy: opencode', result.stdout)
+        self.assertIn('Harnesses: opencode', result.stdout)
         self.assertTrue((self.config / 'opencode/AGENTS.md').is_symlink())
 
     def test_opencode_additional_layers_are_reported_without_their_contents(self):
@@ -650,7 +650,7 @@ class ApplyTests(unittest.TestCase):
     def test_vscode_creates_configuration_with_manual_instruction_notice(self):
         self.local(['vscode'])
         result = self.run_apply()
-        self.assertIn('VS Code: dla harnessu Local', result.stdout)
+        self.assertIn('VS Code: for the Local harness', result.stdout)
         self.assertNotIn('Cursor:', result.stdout)
         self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
@@ -712,7 +712,7 @@ class ApplyTests(unittest.TestCase):
         path = self.vscode_config('{"servers": {"context7": {"type": "http", "url": "https://personal.example/mcp"}}}')
         before = path.read_bytes()
         result = self.run_apply(success=False)
-        self.assertIn('VS Code: kolizja nazwy MCP', result.stderr)
+        self.assertIn('VS Code: MCP name collision', result.stderr)
         self.assertEqual(before, path.read_bytes())
         self.assertFalse((self.home / '.codex/config.toml').exists())
 
@@ -728,7 +728,7 @@ class ApplyTests(unittest.TestCase):
     def test_vscode_rejects_malformed_jsonc_without_writing_other_harnesses(self):
         self.local(['codex', 'vscode'])
         cases = (('{"servers": {/* unfinished}', 'JSONC'),
-                 ('{"servers": 123}', 'VS Code: servers musi być obiektem'),
+                 ('{"servers": 123}', 'VS Code: servers must be an object'),
                  ('{"servers": {}, "servers": {}}', 'JSONC'))
         for invalid, message in cases:
             with self.subTest(invalid=invalid):
@@ -754,7 +754,7 @@ class ApplyTests(unittest.TestCase):
         result = subprocess.run([shutil.which('python3'), str(self.repo / 'scripts/agents.py'), 'apply'],
                                 env=self.env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn('Harnessy: vscode', result.stdout)
+        self.assertIn('Harnesses: vscode', result.stdout)
         self.assertIn('context7', (self.config / 'Code/User/mcp.json').read_text())
 
 

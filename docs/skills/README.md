@@ -1,39 +1,39 @@
-# Indeks skilli
+# Skill index
 
-Użyj tej mapy, gdy harness nie pokazuje katalogu skilli. Otwórz procedurę pasującą do zadania. Tryb poniżej wynika z metadanych, a jego obsługa zależy od [harnessu](../integrations/README.md). Wskazanie pliku nie upoważnia do publikacji ani wdrożenia.
+Use this map when the harness does not show the skill catalog. Open the procedure that matches the task. The mode below comes from the metadata, and its handling depends on the [harness](../integrations/README.md). Pointing to a file does not authorize publishing or deploying.
 
-| Zadanie | Skill | Tryb | Wynik |
+| Task | Skill | Mode | Output |
 | --- | --- | --- | --- |
-| Aktualna dokumentacja bibliotek, SDK, API, CLI i chmury | [context7-mcp](../../skills/context7-mcp/SKILL.md) | Dobór przez agenta | Odpowiedź lub implementacja oparta na dokumentacji |
-| Redakcja tekstu | [unslop](../../skills/unslop/SKILL.md) | Ręczny | Poprawiony tekst |
-| Pisanie opisu PR | [pr](../../skills/pr/SKILL.md) | Dobór przez agenta | Opis PR |
-| Publikacja PR i merge | [create-pr](../../skills/create-pr/SKILL.md) | Ręczny | Zweryfikowany wynik publikacji |
-| Przeniesienie zmian motywów między spółkami | [famicord-sync](../../skills/famicord-sync/SKILL.md) | Dobór przez agenta | Zmiany, walidacja i status każdego repozytorium |
-| Brief sekcji WordPress/ACF z Figmy | [figma](../../skills/figma/SKILL.md) | Ręczny | Brief, bez implementacji |
-| Analiza kopii WordPressa lub SQL po włamaniu | [wp-audit](../../skills/wp-audit/SKILL.md) | Dobór przez agenta | Raport dowodów i zakresu analizy |
-| Aktualizacja WordPressa, wtyczek i ACF | [wp-update](../../skills/wp-update/SKILL.md) | Dobór przez agenta | Wersje, walidacja i status publikacji |
-| Formatowanie wklejonych powiadomień o aktualizacjach | [wp-update-list](../../skills/wp-update-list/SKILL.md) | Dobór przez agenta | Lista wersji, bez aktualizacji projektu |
-| Doprecyzowanie planu | [grill-me](../../skills/grill-me/SKILL.md) | Ręczny | Wywiad według [grilling](../../skills/grilling/SKILL.md) |
-| Pisanie instrukcji dla agentów | [writing-for-agents](../../skills/writing-for-agents/SKILL.md) | Dobór przez agenta | Instrukcje i warunki odczytu |
-| Diagnoza błędu lub regresji wydajności | [diagnosing-bugs](../../skills/diagnosing-bugs/SKILL.md) | Dobór przez agenta | Potwierdzona przyczyna i weryfikacja naprawy |
-| Retrospektywa sesji programowania | [retro](../../skills/retro/SKILL.md) | Ręczny | Propozycje usprawnień środowiska agenta |
-| Przekazanie pracy do kolejnej sesji | [handoff](../../skills/handoff/SKILL.md) | Ręczny | Dokument przekazania w katalogu tymczasowym |
-| Implementacja lub naprawa metodą TDD | [tdd](../../skills/tdd/SKILL.md) | Dobór przez agenta | Zachowanie zweryfikowane testem napisanym przed implementacją |
-| Projektowanie interfejsów i poprawa testowalności | [codebase-design](../../skills/codebase-design/SKILL.md) | Dobór przez agenta | Zasady projektowania modułów |
-| Implementacja z wykorzystaniem istniejących wzorców | [ponytail](../../skills/ponytail/SKILL.md) | Dobór przez agenta | Mały, kompletny zakres zmian |
-| Przegląd poprawności i zbędnego kodu | [ponytail-review](../../skills/ponytail-review/SKILL.md) | Dobór przez agenta | Raport przeglądu, bez zmian kodu |
-| Audyt całego repozytorium | [ponytail-audit](../../skills/ponytail-audit/SKILL.md) | Dobór przez agenta | Raport błędów, ryzyka i zbędnego kodu, bez zmian kodu |
+| Current documentation for libraries, SDKs, APIs, CLIs and cloud | [context7-mcp](../../skills/context7-mcp/SKILL.md) | Agent-selected | An answer or implementation based on the documentation |
+| Editing text | [unslop](../../skills/unslop/SKILL.md) | Manual | Revised text |
+| Writing a PR description | [pr](../../skills/pr/SKILL.md) | Agent-selected | A PR description |
+| Publishing and merging a PR | [create-pr](../../skills/create-pr/SKILL.md) | Manual | A verified publishing result |
+| Porting theme changes between companies | [famicord-sync](../../skills/famicord-sync/SKILL.md) | Agent-selected | Changes, validation and the status of each repository |
+| WordPress/ACF section brief from Figma | [figma](../../skills/figma/SKILL.md) | Manual | A brief, no implementation |
+| Analyzing a WordPress copy or SQL dump after a hack | [wp-audit](../../skills/wp-audit/SKILL.md) | Agent-selected | A report of evidence and analysis scope |
+| Updating WordPress, plugins and ACF | [wp-update](../../skills/wp-update/SKILL.md) | Agent-selected | Versions, validation and publishing status |
+| Formatting pasted update notices | [wp-update-list](../../skills/wp-update-list/SKILL.md) | Agent-selected | A version list, no project update |
+| Refining a plan | [grill-me](../../skills/grill-me/SKILL.md) | Manual | An interview following [grilling](../../skills/grilling/SKILL.md) |
+| Writing instructions for agents | [writing-for-agents](../../skills/writing-for-agents/SKILL.md) | Agent-selected | Instructions and read conditions |
+| Diagnosing a bug or performance regression | [diagnosing-bugs](../../skills/diagnosing-bugs/SKILL.md) | Agent-selected | A confirmed cause and a verified fix |
+| Retrospective of a coding session | [retro](../../skills/retro/SKILL.md) | Manual | Proposed improvements to the agent environment |
+| Handing work off to the next session | [handoff](../../skills/handoff/SKILL.md) | Manual | A handoff document in a temporary directory |
+| Implementing or fixing with TDD | [tdd](../../skills/tdd/SKILL.md) | Agent-selected | Behavior verified by a test written before the implementation |
+| Designing interfaces and improving testability | [codebase-design](../../skills/codebase-design/SKILL.md) | Agent-selected | Module design rules |
+| Implementing with existing patterns | [ponytail](../../skills/ponytail/SKILL.md) | Agent-selected | A small, complete change |
+| Reviewing correctness and unneeded code | [ponytail-review](../../skills/ponytail-review/SKILL.md) | Agent-selected | A review report, no code changes |
+| Auditing a whole repository | [ponytail-audit](../../skills/ponytail-audit/SKILL.md) | Agent-selected | A report of bugs, risks and unneeded code, no code changes |
 
-## Wspólne referencje
+## Shared references
 
-`wp-update` i `famicord-sync` czytają [protokół publikacji](../../skills/create-pr/references/workflow.md) dopiero przed tą fazą. Jest to odczyt dokumentu, bez wywoływania ręcznego `create-pr`. Dla odnośników do zasad stylu w globalnej mapie również odczytaj wskazany plik jako referencję.
+`wp-update` and `famicord-sync` read the [publishing protocol](../../skills/create-pr/references/workflow.md) only right before that phase. This is a document read, without invoking the manual `create-pr`. For links to the style rules in the global map, also read the linked file as a reference.
 
-Protokół publikacji odczytuje `pr` przy przygotowaniu opisu. `pr` odpowiada za treść opisu, a protokół za publikację i merge. Samo pisanie opisu nie upoważnia do tych operacji.
+`pr` reads the publishing protocol when preparing a description. `pr` owns the description content, and the protocol owns publishing and merging. Writing a description alone does not authorize those operations.
 
-`grill-me` wymaga `grilling`. W harnessie bez narzędzia `Skill` odczytaj oba pliki. Samo zainstalowanie skilla nie rozpoczyna wywiadu.
+`grill-me` requires `grilling`. In a harness without a `Skill` tool, read both files. Installing the skill alone does not start the interview.
 
-`retro` korzysta z `writing-for-agents`, a `tdd` z `codebase-design`, gdy trzeba zaprojektować interfejs pod testy. Symlinki całych katalogów zachowują referencje TDD oraz projektowania modułów. `tdd` odsyła do `code-review` przy omawianiu etapu przeglądu; ten skill pozostaje w upstream, a osobno dostępny `ponytail-review` ma własną procedurę.
+`retro` uses `writing-for-agents`, and `tdd` uses `codebase-design` when an interface needs designing for tests. Whole-directory symlinks keep the TDD and module design references. `tdd` refers to `code-review` when discussing the review stage. That skill stays upstream, and the separately available `ponytail-review` has its own procedure.
 
-Opisy `tdd` i `codebase-design` wystarczają do doboru przez agenta. `retro` i `handoff` zachowują ręczny tryb wywołania. Ich mapa pozostaje w tym indeksie, bez dodatkowych wpisów w globalnym `AGENTS.md`.
+The `tdd` and `codebase-design` descriptions are enough for agent selection. `retro` and `handoff` keep the manual invocation mode. Their map stays in this index, with no extra entries in the global `AGENTS.md`.
 
-Dobór źródeł, zależności i aktualizacje opisuje [upstream.md](upstream.md). Własne instrukcje wykonawcze są po angielsku. Dokumentacja użytkownika i ustalone polskie komunikaty pozostają po polsku.
+[upstream.md](upstream.md) describes source selection, dependencies and updates.

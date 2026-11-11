@@ -1,8 +1,8 @@
-# Konfiguracja lokalna i MCP
+# Local configuration and MCP
 
-## Ustawienia lokalne i sekrety
+## Local settings and secrets
 
-Opcjonalny plik `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` pozostaje poza repozytorium:
+The optional file `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` stays outside the repository:
 
 ```json
 {
@@ -12,25 +12,25 @@ Opcjonalny plik `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` pozostaje poza
 }
 ```
 
-Brak `harnesses` oznacza automatyczne wykrywanie. Pusta lista wyłącza integracje. Usunięcie harnessu z jawnej listy usuwa wyłącznie jego wcześniej zarządzane wpisy i dowiązania. `disabled_servers` pozwala wyłączyć serwer na konkretnej maszynie bez zmiany wspólnej definicji.
+A missing `harnesses` key means automatic detection. An empty list disables the integrations. Removing a harness from the explicit list removes only its previously managed entries and links. `disabled_servers` disables a server on a specific machine without changing the shared definition.
 
-`disabled_servers_by_harness` wyłącza wspólny wpis tylko w wybranych harnessach. Na przykład `{"vscode": ["context7"], "opencode": ["context7"]}` pozwala zachować własne serwery Context7 HTTP z ich autoryzacją, bez dodawania drugiego połączenia. Nie wyłącza osobistych wpisów o innych nazwach. Ręcznie usunięty zarządzany wpis JSON lub JSONC zostanie odtworzony przez `apply`, jeśli nadal wynika z rejestru i ustawień lokalnych.
+`disabled_servers_by_harness` disables a shared entry only in the selected harnesses. For example, `{"vscode": ["context7"], "opencode": ["context7"]}` keeps your own Context7 HTTP servers with their authorization, without adding a second connection. It does not disable personal entries with other names. If you delete a managed JSON or JSONC entry by hand, `apply` recreates it as long as the registry and local settings still call for it.
 
-Stan własności wpisów, blokada wdrażania i lokalne kopie zapasowe znajdują się w `${XDG_STATE_HOME:-~/.local/state}/agents`. Nie usuwaj `managed.json`, jeśli chcesz nadal automatycznie aktualizować istniejące wpisy. Utrata stanu powoduje wykrycie kolizji zamiast przejęcia obcej konfiguracji. Kopie zapasowe mają uprawnienia `600` i przechowują także zawartość zastępowanych plików lokalnych. Chroń je tak samo jak konfigurację harnessów.
+Entry ownership state, the apply lock and local backups live in `${XDG_STATE_HOME:-~/.local/state}/agents`. Do not delete `managed.json` if you want existing entries to keep updating automatically. Losing the state makes the adapter report a collision instead of taking over someone else's configuration. Backups have `600` permissions and also hold the contents of replaced local files. Protect them the same way as the harness configuration.
 
-Klucze API dostarczaj w środowisku uruchamianego harnessu. Zmienne ustawione tylko w terminalu mogą nie być dostępne w aplikacji graficznej lub usłudze systemd. Tokeny OAuth zapisuje lokalnie odpowiedni harness. Logowanie wykonujemy oddzielnie na każdym komputerze. Repozytorium nie przenosi sesji logowania, historii rozmów ani danych konektorów.
+Provide API keys in the environment of the launched harness. Variables set only in the terminal may be missing in a GUI app or a systemd service. Each harness stores its own OAuth tokens locally. Log in separately on each computer. The repository does not carry login sessions, conversation history or connector data.
 
-## Definicje MCP
+## MCP definitions
 
-Rejestr obejmuje zdalne serwery Context7 pod `https://mcp.context7.com/mcp` i Figma pod `https://mcp.figma.com/mcp` oraz publiczny serwer dokumentacji OpenAI. Figma loguje przez OAuth w każdym harnessie osobno i nie wymaga sekretu. Serwer OpenAI jest przypisany wyłącznie do Codex (`"harnesses": ["codex"]`). Context7 korzysta ze Streamable HTTP i nie wymaga lokalnego Node.js ani `npx`. Pozostałe MCP dodawaj do `mcp/servers.json`, po przeniesieniu sekretów do środowiska.
+The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, and the public OpenAI documentation server. Figma logs in through OAuth separately in each harness and needs no secret. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
 
-Domyślna konfiguracja Context7 łączy się bez klucza API. Dzięki temu brak zmiennej autoryzacji nie blokuje startu MCP. Klucz pozwala uzyskać [wyższe limity zapytań](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). Własne połączenia z autoryzacją można zachować i wyłączyć wspólny wpis przez `disabled_servers_by_harness`.
+The default Context7 configuration connects without an API key, so a missing authorization variable does not block MCP startup. A key gives [higher rate limits](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). You can keep your own authorized connections and disable the shared entry with `disabled_servers_by_harness`.
 
-Jeśli chcesz wymagać autoryzacji we wspólnej definicji Context7, dodaj `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` i ustaw zmienną `CONTEXT7_AUTHORIZATION` na pełną wartość `Bearer <klucz API Context7>`. Adaptery zapisują odwołania do środowiska, a `doctor` sprawdza obecność zmiennej. Wartość klucza pozostaje poza repozytorium.
+To require authorization in the shared Context7 definition, add `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` and set the `CONTEXT7_AUTHORIZATION` variable to the full value `Bearer <Context7 API key>`. The adapters write references to the environment, and `doctor` checks that the variable exists. The key value stays outside the repository.
 
-Po zmianie rejestru uruchom `bash ~/.agents/scripts/apply.sh`. Adaptery aktualizują zarządzane wpisy, zachowując osobiste serwery. Pola `gallery` i `version` nie należą do wspólnego rejestru.
+After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers. The `gallery` and `version` fields do not belong in the shared registry.
 
-Przykład formatu:
+Format example:
 
 ```json
 {
@@ -53,6 +53,6 @@ Przykład formatu:
 }
 ```
 
-Obsługujemy `stdio` i Streamable HTTP. `env_vars` przekazuje zmienne do procesu, `header_env` wskazuje zmienne z wartościami nagłówków, a `requires_env` dodaje wymagania do diagnostyki. Wygenerowana konfiguracja zawiera odwołania do zmiennych, nigdy odczytane wartości. `harnesses` opcjonalnie ogranicza integrację do wskazanych narzędzi.
+We support `stdio` and Streamable HTTP. `env_vars` passes variables to the process, `header_env` names the variables that hold header values, and `requires_env` adds requirements to diagnostics. The generated configuration holds variable references, never the values read from them. `harnesses` optionally limits the integration to the listed tools.
 
-Nie umieszczaj sekretów w argumentach, URL ani plikach źródłowych. Wspólny rejestr nie przyjmuje dowolnych pól `env` lub `headers` ze stałymi wartościami. Polecenia powinny być dostępne w `PATH`, bez ścieżek `/home/...`. Zależności MCP instalujesz lokalnie. Jeśli potrzebujesz powtarzalnej wersji paczki, przypnij jej wersję w argumentach polecenia.
+Do not put secrets in arguments, URLs or source files. The shared registry does not accept arbitrary `env` or `headers` fields with fixed values. Commands should be available in `PATH`, without `/home/...` paths. Install MCP dependencies locally. If you need a reproducible package version, pin it in the command arguments.

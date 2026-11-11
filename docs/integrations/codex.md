@@ -1,5 +1,5 @@
 # Codex
 
-Codex otrzymuje symlink globalnych instrukcji do `~/.codex/AGENTS.md`. Skille odczytuje z `~/.agents/skills`. Adapter aktualizuje oznaczony blok MCP w `~/.codex/config.toml`, zachowując pozostałe ustawienia i komentarze.
+Codex gets a symlink of the global instructions at `~/.codex/AGENTS.md`. It reads skills from `~/.agents/skills`. The adapter updates a marked MCP block in `~/.codex/config.toml` and keeps the other settings and comments.
 
-Przy ustawionym `CODEX_HOME` adapter używa tego katalogu zamiast `~/.codex`. Przy niestandardowej lokalizacji wybierz harness jawnie w `local.json` i zapewnij tę samą zmienną procesowi synchronizacji.
+When `CODEX_HOME` is set, the adapter uses that directory instead of `~/.codex`. With a custom location, select the harness explicitly in `local.json` and give the synchronization process the same variable.

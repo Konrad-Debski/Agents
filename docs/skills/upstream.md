@@ -1,42 +1,42 @@
-# Źródła zewnętrzne i wybór skilli
+# External sources and skill selection
 
-Wczytuj przy dodawaniu lub aktualizowaniu zewnętrznych skilli. Źródła są submodułami, a `skills/` zawiera symlinki do wybranych całych katalogów. Zachowuje to referencje, skrypty, metadane i licencje oryginałów.
+Load when adding or updating external skills. The sources are submodules, and `skills/` holds symlinks to selected whole directories. This keeps the originals' references, scripts, metadata and licenses.
 
-## Aktywny zestaw
+## Active set
 
-| Źródło | Symlinki w `skills/` | Zastosowanie |
+| Source | Symlinks in `skills/` | Use |
 | --- | --- | --- |
-| [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Redakcja tekstów |
-| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-audit`, `ponytail-review` | Mały zakres implementacji, przegląd zmian i audyt całego repozytorium |
-| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Wymagania dla sekcji, instrukcje dla agentów, diagnoza błędów, opisy PR, retrospektywa, przekazanie pracy, TDD i projektowanie modułów |
+| [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Editing text |
+| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-audit`, `ponytail-review` | Small implementation scope, reviewing changes and auditing a whole repository |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Section requirements, agent instructions, bug diagnosis, PR descriptions, retrospectives, work handoff, TDD and module design |
 
-`grilling` jest zależnością aktualnego `grill-me`. Pozostawienie samego aliasu uniemożliwiłoby wykonanie jego procedury. `diagnosing-bugs` ma własny szablon skryptu, a `writing-for-agents` plik `SKILL-MECHANICS.md`; symlink całego katalogu udostępnia także te zasoby.
+`grilling` is a dependency of the current `grill-me`. Keeping only the alias would make its procedure impossible to run. `diagnosing-bugs` has its own script template, and `writing-for-agents` has a `SKILL-MECHANICS.md` file. The whole-directory symlink exposes these resources too.
 
-Skille są ogólne i stosują się do PHP, Twig, ACF, CSS oraz TypeScript w motywach. Nie wnoszą gotowych konwencji konkretnego motywu, więc agent nadal korzysta z instrukcji projektu.
+The skills are general and apply to PHP, Twig, ACF, CSS and TypeScript in themes. They bring no ready conventions for a specific theme, so the agent still follows the project instructions.
 
-Pozostałe skille są dostępne w źródłach, ale nie mają globalnych symlinków. Pomijamy pakietowy instalator, hooki i globalne reguły Ponytail, żeby dodanie źródła nie wymuszało jego odczytu przy każdym zadaniu. `ponytail` ma szeroki opis wywołania i po uruchomieniu działa przez sesję; zachowujemy zachowanie autora. Nie dopisujemy go do głównego `AGENTS.md`.
+The other skills are available in the sources but have no global symlinks. We skip the Ponytail package installer, hooks and global rules, so adding the source does not force a read on every task. `ponytail` has a broad invocation description and, once started, stays active for the session. We keep the author's behavior. We do not add it to the main `AGENTS.md`.
 
-`pr` z `engineering/pr` określa treść opisu PR. Własny `create-pr` prowadzi publikację i merge przez wspólny protokół, który odczytuje `pr` przy przygotowaniu opisu.
+`pr` from `engineering/pr` sets the PR description content. The repository's own `create-pr` runs publishing and merging through the shared protocol, which `pr` reads when preparing a description.
 
-Z repo Matta nie udostępniamy globalnie procedur trackerów, generatorów środowiska, materiałów szkoleniowych ani skilli eksperymentalnych. `tdd` udostępniamy do pracy metodą test-first, a `codebase-design` do projektowania modułów i jako referencję dla TDD. `retro` i `handoff` uruchamia użytkownik. Dodanie kolejnego skilla wymaga sprawdzenia jego zależności i uzasadnienia odrębnego zastosowania.
+From Matt's repository we do not expose tracker procedures, environment generators, training materials or experimental skills globally. We expose `tdd` for test-first work, and `codebase-design` for module design and as a reference for TDD. The user starts `retro` and `handoff`. Adding another skill requires checking its dependencies and justifying a separate use.
 
-## Aktualizacja
+## Updating
 
-Gitlink w repo nadrzędnym określa dokładną wersję każdego źródła. Instalator i synchronizacja automatycznie aktualizują wszystkie źródła do najnowszych commitów gałęzi upstream. Synchronizacja zapisuje i wysyła nowe gitlinki. Gałąź pochodzi z `.gitmodules`, a bez wpisu `branch` Git używa domyślnej gałęzi zdalnego repozytorium.
+The gitlink in the parent repository sets the exact version of each source. The installer and synchronization automatically update all sources to the latest commits of their upstream branches. Synchronization commits and pushes the new gitlinks. The branch comes from `.gitmodules`, and without a `branch` entry Git uses the remote repository's default branch.
 
-Przy zadaniu aktualizacji wybranego źródła:
+When the task is to update one source:
 
 ```bash
 git -C ~/.agents submodule update --init --remote --checkout -- .upstream/ponytail
 git -C ~/.agents submodule update --init --remote --checkout -- .upstream/mattpocock-skills
 ```
 
-Uruchom tylko polecenie dotyczące aktualizowanego źródła. Sprawdź diff, metadane i ścieżki wybranych skilli. Jeśli upstream je zmienił, popraw symlinki oraz listę `skills` w `package.json`. Nie edytuj plików wewnątrz submodułu. Zapisz nowy gitlink albo pozostaw to synchronizacji. Po zmianach uruchom `apply`, aby odświeżyć dowiązania Claude Code. Szczegóły tego procesu opisuje [synchronization.md](../operations/synchronization.md).
+Run only the command for the source you are updating. Check the diff, metadata and paths of the selected skills. If upstream changed them, fix the symlinks and the `skills` list in `package.json`. Do not edit files inside the submodule. Commit the new gitlink or leave that to synchronization. After the changes, run `apply` to refresh the Claude Code links. [synchronization.md](../operations/synchronization.md) describes this process in detail.
 
-Nie uruchamiaj skryptu Matta `scripts/link-skills.sh`, bo udostępnia szerszy zestaw niż wybrany tutaj. Samo pobranie repozytorium do `.upstream/` nie instaluje całego pakietu w katalogu skilli.
+Do not run Matt's `scripts/link-skills.sh` script, because it exposes a wider set than the one selected here. Fetching the repository into `.upstream/` alone does not install the whole package into the skill directory.
 
-## Podział dokumentacji
+## Documentation split
 
-Z repo Matta przejmujemy podział dokumentacji według rodzaju pracy oraz wskazanie, kiedy użyć danego materiału. W tej bazie kategorie to `operations/`, `integrations/`, `contributing/` i `skills/`. Dobieramy je do utrzymania wspólnej konfiguracji, zamiast kopiować kategorie jego pakietu.
+From Matt's repository we adopt splitting documentation by type of work and stating when to use each piece of material. In this base the categories are `operations/`, `integrations/`, `contributing/` and `skills/`. We chose them for maintaining a shared configuration instead of copying his package's categories.
 
-Plik o skillu wyjaśnia jego dobór. Procedura pozostaje w `SKILL.md`. W ten sposób dokumentacja nie staje się drugą kopią instrukcji.
+A file about a skill explains how it is chosen. The procedure stays in `SKILL.md`, so the documentation does not become a second copy of the instructions.
