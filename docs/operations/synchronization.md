@@ -1,10 +1,12 @@
 # Synchronization
 
-The first run happens about a minute after installation, then every 15 minutes after the previous run ends. Synchronization works only on `main` and also commits new and deleted source files automatically. It can commit an edit in progress. Use a separate branch for work on changes.
+The first run happens about a minute after installation, then every 15 minutes after the previous run ends. Synchronization works only on `main`. It fetches `origin/main`, advances by fast-forward and applies the approved configuration. It never commits, rebases or pushes.
+
+Local edits, untracked source files, local commits and unfinished Git operations stop synchronization without changing them. Work on a separate branch and publish a pull request. If edits already exist on `main`, move them to a working branch before resuming synchronization. Do not discard them to make the timer pass.
 
 `.gitignore` allows only the shared directories. An extra check also covers already tracked files and local unpushed commits. It blocks paths outside the scope, common credential files and recognized token formats. It does not replace reviewing changes and does not detect every possible secret.
 
-Before synchronizing, we check the MCP registry. After a successful synchronization and submodule update, we check the sources again and run `apply`. A Git conflict stops the process and needs manual resolution. An apply error does not roll back the Git synchronization. After fixing the cause, run `apply` again.
+After downloading the approved revision and its recorded submodule versions, we check the synchronization scope and MCP registry, then run `apply`. A failed validation leaves the previous harness configuration in place. An apply error does not roll back the Git download. After fixing the cause, run `apply` again. Failed submodule checkouts leave a marker so the next run can retry the approved versions. Local edits inside submodules still stop the retry.
 
 ```bash
 systemctl --user status agents-sync.timer
@@ -23,7 +25,9 @@ The installer tries to keep systemd running after logout with `loginctl enable-l
 
 ## Submodules
 
-The installer and every synchronization run update all submodules declared in `.gitmodules` to the latest upstream commits. The `branch` entry in `.gitmodules` sets the branch: `master` for `git-sync` and `main` for `cursor-plugins`. Without that entry, as for `ponytail` and `mattpocock-skills`, Git uses the remote repository's default branch. Synchronization commits the new submodule pointers and pushes them to `origin/main`.
+The installer and synchronization check out the gitlinks recorded in the parent repository. A newer upstream commit is not installed until its gitlink has passed CI and been merged through a pull request. The old git-sync publishing dependency and autocommit script have been removed.
+
+During migration, the runner archives a recognized clean orphan of the retired git-sync checkout. Dirty or unrecognized leftovers remain untouched and stop synchronization. [Installation](installation.md) describes the archive and recovery of unpublished commits from the old timer.
 
 Do not edit files inside submodules. Uncommitted changes stop synchronization. We link selected skills as whole directories, keeping their references and metadata. Codex ignores symlinks of the `SKILL.md` file itself during skill discovery. [upstream.md](../skills/upstream.md) describes choosing new sources.
 
@@ -35,14 +39,15 @@ git -C ~/.agents submodule update --init --recursive
 bash ~/.agents/scripts/apply.sh
 ```
 
-Manually fetching the latest versions of all sources:
+Proposing newer versions of all sources on a working branch:
 
 ```bash
+git -C ~/.agents switch -c chore/update-upstream-skills
 git -C ~/.agents submodule update --init --remote --checkout
 bash ~/.agents/scripts/apply.sh
 ```
 
-After a manual update, commit the new pointers or leave that to the next synchronization run.
+Review the upstream changes, run the quality checks, commit the new gitlinks and publish a pull request. The timer skips working branches and does not publish the update for you. After merge, return to `main` and fetch the approved revision.
 
 ## Claude Code links
 

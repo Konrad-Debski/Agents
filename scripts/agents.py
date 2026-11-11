@@ -20,8 +20,8 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 BEGIN = '# BEGIN agents managed MCP\n'
 END = '# END agents managed MCP\n'
-ALLOWED_FILES = {'AGENTS.md', 'README.md', '.gitignore', '.gitmodules', 'package.json', 'install.sh'}
-ALLOWED_DIRS = {'skills', 'mcp', 'adapters', 'scripts', 'docs', 'tests', '.upstream'}
+ALLOWED_FILES = {'AGENTS.md', 'README.md', '.gitignore', '.gitmodules', 'package.json', 'package-lock.json', 'install.sh'}
+ALLOWED_DIRS = {'skills', 'mcp', 'adapters', 'scripts', 'docs', 'tests', '.upstream', '.github'}
 SECRET_NAME = re.compile(r'(^|/)(\.env(?:\..*)?|credentials(?:\..*)?|auth\.json|id_rsa|id_ed25519|.*\.pem|.*\.key)$', re.I)
 LOCAL_NAME = re.compile(r'(^|/)(?:\.cache|__pycache__)(?:/|$)|\.(?:log|tar|zip|gz|pyc|pyo)$', re.I)
 SECRET_VALUE = re.compile(rb'-----BEGIN (?:[A-Z ]*PRIVATE KEY)-----|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|sk-[A-Za-z0-9_-]{32,})\b')
@@ -72,7 +72,8 @@ def registry():
             require(isinstance(oauth, dict) and isinstance(oauth.get('client_id'), str)
                     and not (set(oauth) - {'client_id', 'client_secret_env', 'scopes', 'auth_server_metadata_url'}),
                     f'{name}: oauth requires client_id and accepts client_secret_env, scopes, auth_server_metadata_url')
-            require(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', str(oauth.get('client_secret_env', '_'))),
+            secret_env = oauth.get('client_secret_env', '_')
+            require(isinstance(secret_env, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', secret_env),
                     f'{name}: client_secret_env must name a variable')
             scopes = oauth.get('scopes', [])
             require(isinstance(scopes, list) and all(isinstance(v, str) and v and not re.search(r'\s', v) for v in scopes),
@@ -233,7 +234,7 @@ def parse_jsonc(text):
     def skip():
         nonlocal position
         while position < len(text):
-            if text[position].isspace():
+            if text[position] in ' \t\r\n':
                 position += 1
             elif text.startswith('//', position):
                 end = text.find('\n', position)
@@ -318,7 +319,8 @@ def jsonc_property(text, section, key, value=None, remove=False):
             if comma is not None:
                 end = comma + 1
             elif index:
-                start = node.properties[index - 1][3]
+                previous_comma = node.properties[index - 1][3]
+                return text[:previous_comma] + text[previous_comma + 1:start] + text[end:]
             return text[:start] + text[end:]
         indent = '  ' * (len(section) + 1)
         rendered = json.dumps(value, indent=2, ensure_ascii=False).replace('\n', '\n' + indent)

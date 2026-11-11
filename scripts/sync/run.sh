@@ -6,9 +6,7 @@ repo_dir=$(git -C "$script_dir/.." rev-parse --show-toplevel)
 cd -- "$repo_dir"
 git_dir=$(git rev-parse --absolute-git-dir)
 state_dir="$git_dir/agents-sync"
-upstream_script="$repo_dir/.upstream/git-sync/git-sync"
-
-[[ -d "$state_dir" && -f "$upstream_script" ]] || {
+[[ -d "$state_dir" ]] || {
     printf 'Run bash install.sh first.\n' >&2
     exit 1
 }
@@ -30,11 +28,23 @@ export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes -oConnectTimeout=15}"
 export GCM_INTERACTIVE=never
 
-python3 scripts/agents.py guard
-python3 scripts/agents.py validate
-
-# Refuse unfinished Git operations before touching submodules.
-bash "$upstream_script" check
+# Keep edits and local commits on their original branch for a pull request.
+for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply sequencer; do
+    if [[ -e $(git rev-parse --git-path "$operation") ]]; then
+        printf 'Finish the current Git operation before synchronizing.\n' >&2
+        exit 1
+    fi
+done
+pending="$state_dir/submodules-pending"
+# shellcheck source=scripts/sync/retire-legacy.sh
+source "$repo_dir/scripts/sync/retire-legacy.sh"
+retire_legacy_sync "$repo_dir" "$state_dir"
+if [[ -n $(git status --porcelain --untracked-files=all --ignore-submodules=all) ]] ||
+    { [[ ! -e "$pending" ]] && [[ -n $(git status --porcelain --untracked-files=all) ]]; }; then
+    printf 'Local changes are preserved. Publish them through a pull request before synchronizing.\n' >&2
+    exit 1
+fi
+# shellcheck disable=SC2016 # Git expands the variables in each submodule.
 git submodule foreach --quiet --recursive '
     if test -n "$(git status --porcelain)"; then
         echo "Submodule $displaypath has uncommitted changes. Commit them in its repository." >&2
@@ -42,26 +52,16 @@ git submodule foreach --quiet --recursive '
     fi
 '
 
-# Retry a failed checkout before git-sync can mistake an old submodule HEAD for
-# an intentional local change to the recorded submodule version.
-pending="$state_dir/submodules-pending"
-if [[ -e "$pending" ]]; then
-    git submodule update --init --recursive
-    rm -f -- "$pending"
+git fetch origin main
+if ! git merge-base --is-ancestor HEAD origin/main; then
+    printf 'Local commits are preserved. Move them to a pull request branch before synchronizing.\n' >&2
+    exit 1
 fi
-
-before=$(git rev-parse HEAD)
-git submodule update --init --remote --checkout
-bash -n "$upstream_script"
 touch "$pending"
-if bash "$upstream_script"; then
-    git submodule update --init --recursive
-    rm -f -- "$pending"
-    python3 scripts/agents.py guard
-    python3 scripts/agents.py validate
-    bash scripts/apply.sh
-else
-    result=$?
-    if [[ $(git rev-parse HEAD) == "$before" ]]; then rm -f -- "$pending"; fi
-    exit "$result"
-fi
+git merge --ff-only origin/main
+retire_legacy_sync "$repo_dir" "$state_dir"
+git submodule update --init --recursive --checkout
+rm -f -- "$pending"
+python3 scripts/agents.py guard
+python3 scripts/agents.py validate
+bash scripts/apply.sh

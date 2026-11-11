@@ -2,14 +2,14 @@
 
 The repository is installed as `~/.agents`. The global `AGENTS.md` is the knowledge map for all projects. Load this document when changing the `~/.agents` base itself.
 
-- On `main`, the `agents-sync` service commits and pushes changes every 15 minutes. Work on a separate branch so the service does not commit an unfinished edit. It skips other branches.
+- On `main`, the `agents-sync` service downloads approved changes every 15 minutes. It stops on local edits or unpublished commits and skips other branches. Publish changes through a pull request.
 - Do not run the installer from a worktree against the real HOME as part of testing. The tests have an isolated environment.
-- The installer and synchronization update all submodules to the latest commits of their upstream branches. Do not edit their files. Expose only the selected skills listed in [upstream.md](../skills/upstream.md).
+- The installer and synchronization check out the submodule versions recorded in the repository. Update gitlinks through a pull request. Do not edit upstream files. Expose only the selected skills listed in [upstream.md](../skills/upstream.md).
 - A new top-level directory needs a change to `.gitignore` and to the scope list in `scripts/agents.py`.
 - Adding a harness needs a manifest in `adapters/`, support for its format in `scripts/agents.py`, tests and a description of its limits. A manifest alone does not add support for an arbitrary new format.
 - Skill changes must account for path portability and dependencies on a specific harness's tools. Do not silently change the publishing procedures inside skills.
 
-Before handing off changes, run `python3 -m unittest discover -s tests -v` and check the syntax of changed scripts with `bash -n`.
+Before handing off changes, run `bash scripts/check.sh all`. [CI and pull request checks](ci.md) describes dependency setup and the required GitHub results.
 
 Install on the target computer with `bash ~/.agents/install.sh`, without `sudo`. [installation.md](../operations/installation.md) lists the current requirements.
 
@@ -30,6 +30,6 @@ Agents load the main `AGENTS.md` in every project. Put only guidance shared acro
 python3 -m unittest discover -s tests -v
 ```
 
-The tests use temporary home directories, local remote Git repositories and a systemd stub. They do not change the user's live configuration.
+Install the development dependencies described in [ci.md](ci.md) first. The tests use temporary home directories, local remote Git repositories and a systemd stub. They do not change the user's live configuration.
 
-If OpenCode 2 is available in `PATH`, extra tests run `opencode debug config --standalone` with isolated HOME and XDG directories. They check JSON and JSONC configuration and OpenCode 1 format compatibility. MCP servers in these configuration copies are disabled, and the tests do not run a model. Without a local OpenCode 2 install these tests are skipped, and the adapter tests still run.
+If OpenCode 2 is already installed, optional local tests run `opencode debug config --standalone` with isolated HOME and XDG directories. They check JSON and JSONC configuration and OpenCode 1 format compatibility. MCP servers in these configuration copies are disabled, and the tests do not run a model. Without a compatible client the CLI tests skip; the adapter tests still run. Development tooling and CI never install OpenCode.

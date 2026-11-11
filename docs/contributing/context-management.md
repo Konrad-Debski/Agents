@@ -37,7 +37,7 @@ The editing is based on the [For skill creators series](https://agentskills.io/s
 
 Change instructions based on an identified problem. A shorter text or valid frontmatter alone does not prove better behavior. Future evaluations should cover both skill selection and output quality. Add automation only for repeated work.
 
-External sources are submodules that update automatically to the latest upstream versions. Do not edit their files. [upstream.md](../skills/upstream.md) describes their selection, and [synchronization.md](../operations/synchronization.md) the update rules.
+External sources are submodules pinned to approved versions. Update their gitlinks through a pull request; the timer distributes only merged versions. Do not edit upstream files. [upstream.md](../skills/upstream.md) describes their selection, and [synchronization.md](../operations/synchronization.md) the update rules.
 
 ## Paths
 
