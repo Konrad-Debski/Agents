@@ -39,7 +39,7 @@ For a saved GitHub pull request event:
 npm run check:pr -- /absolute/path/to/event.json
 ```
 
-`ci.yml` runs quality checks and the Python suite on 3.11 and 3.15. Its final `ci-required` result fails if either job fails, is cancelled or is skipped. `pr-policy.yml` checks metadata and new commits, including after a title or body edit. Neither workflow uses path filters, write tokens, live MCP credentials or deployment secrets. Tests run in disposable HOME and XDG directories. Existing OpenCode CLI tests are optional and skip when a suitable client is not already installed; adapter tests still run without it.
+`ci.yml` runs quality checks and a single Python test job on the latest stable Python 3 release, selected with `python-version: '3.x'` and `check-latest: true`. Its final `ci-required` result fails if either job fails, is cancelled or is skipped. `pr-policy.yml` checks metadata and new commits, including after a title or body edit. Neither workflow uses path filters, write tokens, live MCP credentials or deployment secrets. Tests run in disposable HOME and XDG directories. Existing OpenCode CLI tests are optional and skip when a suitable client is not already installed; adapter tests still run without it.
 
 ## Enable merge enforcement
 

@@ -26,7 +26,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.11'
+          python-version: '3.x'
+          check-latest: true
       - uses: actions/setup-node@v7
         with:
           node-version: '26'
@@ -51,10 +52,6 @@ jobs:
   tests:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ['3.11', '3.15']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -63,7 +60,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python }}
+          python-version: '3.x'
+          check-latest: true
       - uses: actions/setup-go@v7
         with:
           go-version: stable
