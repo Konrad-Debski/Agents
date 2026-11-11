@@ -48,7 +48,7 @@ CI caches downloads and installed tools:
 - Node uses a distribution cache for the latest stable Node 26 version, resolved from the official release index on every run. The cached version directory includes the tool-cache completion marker.
 - Gitleaks caches only its executable, keyed by the current Go module version, runner OS, architecture and installer script. A miss installs Go and builds that version using `go install`; a hit skips both steps.
 - actionlint caches its executable by the digest of its official download script. The script is fetched on every run and selects the latest release; a changed script invalidates the executable cache.
-- Submodule Git data uses a cache keyed by the recorded `.upstream` tree and `.gitmodules`. Shallow submodule checkout always runs to materialize the pinned commits. The root repository's history is fetched on every run for commit checks and secret scanning.
+- Submodule Git data uses a cache keyed by the recorded `.upstream` tree and `.gitmodules`. After restoring it, `actions/checkout` materializes the pinned commits using its credential handling. The root repository's history is fetched on every run for commit checks and secret scanning.
 
 The large Go source and compilation cache is disabled: a measured 305 MB entry took 20 s to save. The small Gitleaks executable cache already covers repeated runs. Python's distribution comes from the runner image when available. Tests and static analysis always run, regardless of cache hits. Local tool installation defaults to `@latest`.
 

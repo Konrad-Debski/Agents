@@ -31,14 +31,11 @@ jobs:
           path: .git/modules
           key: submodules-${{ runner.os }}-${{ steps.submodules.outputs.revision }}-${{ hashFiles('.gitmodules') }}
       - name: Check out pinned submodules
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          submodule_auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          GIT_CONFIG_COUNT=1 \
-          GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
-          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $submodule_auth" \
-          git submodule update --init --recursive --checkout --depth=1 --jobs=3
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
