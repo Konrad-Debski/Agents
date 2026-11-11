@@ -48,12 +48,6 @@ class SyncTests(unittest.TestCase):
         local = self.base / "config/agents/local.json"
         local.parent.mkdir(parents=True)
         local.write_text('{"harnesses": []}')
-        self.upstream = self.new_remote("git-sync", "master")
-        (self.upstream / "git-sync").write_bytes(
-            (ROOT / ".upstream/git-sync/git-sync").read_bytes()
-        )
-        self.commit(self.upstream, "git-sync source")
-        self.git(self.upstream, "push", "-u", "origin", "master")
         self.vendor = self.new_remote("vendor", "main")
         (self.vendor / "SKILL.md").write_text("Original vendor skill\n")
         self.commit(self.vendor, "vendor source")
@@ -70,7 +64,6 @@ class SyncTests(unittest.TestCase):
         (self.seed / "skills/skill.md").write_text("Original skill\n")
         (self.seed / "skills/remove.md").write_text("Remove later\n")
         for name, branch, remote in (
-            ("git-sync", "master", "git-sync.git"),
             ("cursor-plugins", "main", "vendor.git"),
         ):
             self.git(self.seed, "submodule", "add", "-b", branch,
@@ -131,34 +124,103 @@ class SyncTests(unittest.TestCase):
         self.git(repo, "push", "origin", branch)
         return self.git(repo, "rev-parse", "HEAD")
 
+    def remove_legacy_sync_submodule(self):
+        legacy = self.new_remote('legacy-sync', 'master')
+        (legacy / 'git-sync').write_text('#!/usr/bin/env bash\nexit 0\n')
+        self.commit(legacy, 'legacy sync fixture')
+        self.git(legacy, 'push', '-u', 'origin', 'master')
+        self.git(self.seed, 'submodule', 'add', '-b', 'master',
+                 str(self.base / 'legacy-sync.git'), '.upstream/git-sync')
+        self.commit(self.seed, 'install legacy sync')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.sync()
+        # Match the historical checkout without using its real remote over the network.
+        self.git(self.repo / '.upstream/git-sync', 'remote', 'set-url', 'origin',
+                 'https://github.com/simonthum/git-sync.git')
+        self.git(self.seed, 'rm', '.upstream/git-sync')
+        self.commit(self.seed, 'retire legacy sync')
+        self.git(self.seed, 'push', 'origin', 'main')
+
+    def test_upgrading_an_existing_machine_archives_the_retired_submodule(self):
+        self.remove_legacy_sync_submodule()
+        self.sync()
+        self.sync()
+        self.install(self.repo)
+        self.assertEqual(self.git(self.repo, 'status', '--porcelain'), '')
+        archives = list((self.repo / '.git/agents-sync').glob('retired-git-sync.*/checkout'))
+        self.assertEqual(len(archives), 1)
+        self.assertEqual((archives[0] / 'git-sync').read_text(), '#!/usr/bin/env bash\nexit 0\n')
+        self.assertEqual(self.git(archives[0], 'status', '--porcelain'), '')
+
+    def test_installer_recovers_a_retired_checkout_left_by_an_older_runner(self):
+        self.remove_legacy_sync_submodule()
+        self.git(self.repo, 'pull', '--ff-only')
+        self.install(self.repo)
+        self.sync()
+        self.assertEqual(self.git(self.repo, 'status', '--porcelain'), '')
+        self.assertFalse((self.repo / '.upstream/git-sync').exists())
+
+    def test_dirty_retired_checkout_is_preserved_by_sync_and_installer(self):
+        self.remove_legacy_sync_submodule()
+        self.git(self.repo, 'pull', '--ff-only')
+        path = self.repo / '.upstream/git-sync/git-sync'
+        path.write_text('Local work that must survive migration\n')
+        for result in (self.sync(success=False), self.run_cmd(self.repo, 'bash', 'install.sh', success=False)):
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Preserved local changes', result.stdout)
+        self.assertEqual(path.read_text(), 'Local work that must survive migration\n')
+        self.assertFalse(list((self.repo / '.git/agents-sync').glob('retired-git-sync.*')))
+
+    def test_retired_checkout_with_a_different_origin_is_not_archived(self):
+        self.remove_legacy_sync_submodule()
+        self.git(self.repo, 'pull', '--ff-only')
+        checkout = self.repo / '.upstream/git-sync'
+        self.git(checkout, 'remote', 'set-url', 'origin', 'https://example.com/personal.git')
+        result = self.sync(success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('different origin', result.stdout)
+        self.assertTrue((checkout / 'git-sync').exists())
+
+    def test_archiving_a_clean_retired_checkout_preserves_its_local_commits(self):
+        self.remove_legacy_sync_submodule()
+        checkout = self.repo / '.upstream/git-sync'
+        self.identity(checkout)
+        self.git(checkout, 'switch', '-c', 'personal-work')
+        (checkout / 'git-sync').write_text('Committed local customization\n')
+        self.commit(checkout, 'local customization')
+        local_head = self.git(checkout, 'rev-parse', 'HEAD')
+        self.git(self.repo, 'pull', '--ff-only')
+        self.install(self.repo)
+        archive = next((self.repo / '.git/agents-sync').glob('retired-git-sync.*/checkout'))
+        self.assertEqual(self.git(archive, 'rev-parse', 'HEAD'), local_head)
+        self.assertEqual((archive / 'git-sync').read_text(), 'Committed local customization\n')
+
     def test_installer_is_repeatable_and_units_are_valid(self):
         self.git(self.repo, "submodule", "deinit", "--all")
-        self.assertFalse((self.repo / ".upstream/git-sync/git-sync").exists())
+        self.assertFalse((self.repo / ".upstream/cursor-plugins/SKILL.md").exists())
         self.install(self.repo)
-        self.assertTrue((self.repo / ".upstream/git-sync/git-sync").exists())
+        self.assertTrue((self.repo / ".upstream/cursor-plugins/SKILL.md").exists())
         self.install(self.repo)
         units = self.base / "config/systemd/user"
         self.assertIn("enable --now agents-sync.timer",
                       (self.base / "systemd.log").read_text())
-        self.assertEqual(self.git(self.repo, "config", "branch.main.syncNewFiles"), "true")
         self.assertEqual(self.git(self.repo, "status", "--porcelain"), "")
         if shutil.which("systemd-analyze"):
             self.run_cmd(self.base, "systemd-analyze", "--user", "verify",
                          str(units / "agents-sync.service"),
                          str(units / "agents-sync.timer"))
 
-    def test_local_changes_make_one_commit_and_no_empty_commits(self):
+    def test_local_edits_are_preserved_without_committing_or_pushing(self):
         before = self.git(self.repo, "rev-parse", "HEAD")
         (self.repo / "skills/skill.md").write_text("Edited skill\n")
         (self.repo / "skills/new.md").write_text("New skill\n")
         (self.repo / "skills/remove.md").unlink()
-        self.sync()
-        self.assertEqual(self.git(self.repo, "rev-list", "--count", before + "..HEAD"), "1")
-        self.assertEqual(self.git(self.repo, "rev-parse", "HEAD"),
-                         self.git(self.base / "skills.git", "rev-parse", "main"))
-        after = self.git(self.repo, "rev-parse", "HEAD")
-        self.sync()
-        self.assertEqual(after, self.git(self.repo, "rev-parse", "HEAD"))
+        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.assertEqual(before, self.git(self.repo, "rev-parse", "HEAD"))
+        self.assertEqual(before, self.git(self.base / "skills.git", "rev-parse", "main"))
+        self.assertEqual((self.repo / "skills/skill.md").read_text(), "Edited skill\n")
+        self.assertTrue((self.repo / "skills/new.md").exists())
+        self.assertFalse((self.repo / "skills/remove.md").exists())
 
     def test_sync_refreshes_claude_skills_from_remote_and_preserves_personal_skills(self):
         local = self.base / "config/agents/local.json"
@@ -182,6 +244,11 @@ class SyncTests(unittest.TestCase):
 
         self.advance(self.vendor, 'SKILL.md')
         self.sync(env=env)
+        self.assertEqual((installed / 'SKILL.md').read_text(), 'Original vendor skill\n')
+        self.git(self.seed, 'submodule', 'update', '--remote', '--checkout')
+        self.commit(self.seed, 'approve vendor update')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.sync(env=env)
         self.assertIn('New upstream revision', (installed / 'SKILL.md').read_text())
 
         self.git(self.seed, 'pull', '--ff-only')
@@ -192,45 +259,45 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(installed.is_symlink())
         self.assertEqual(personal.read_text(), 'Personal skill\n')
 
-    def test_all_upstream_updates_are_published(self):
-        vendor_latest = self.advance(self.vendor, "SKILL.md")
-        latest = self.advance(self.upstream, "git-sync")
+    def test_unapproved_upstream_updates_are_not_installed_or_published(self):
+        recorded = self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD')
+        before = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.advance(self.vendor, 'SKILL.md')
         self.sync()
-        self.assertEqual(latest, self.git(self.repo / ".upstream/git-sync", "rev-parse", "HEAD"))
-        self.assertIn(latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/git-sync"))
-        self.assertEqual(vendor_latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
-        self.assertIn(vendor_latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/cursor-plugins"))
-        after = self.git(self.repo, "rev-parse", "HEAD")
-        self.sync()
-        self.assertEqual(after, self.git(self.repo, "rev-parse", "HEAD"))
+        self.assertEqual(recorded, self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD'))
+        self.assertEqual(before, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
 
-    def test_installer_updates_all_submodules_including_default_branch(self):
-        self.git(self.repo, "config", "-f", ".gitmodules", "--unset",
-                 "submodule..upstream/cursor-plugins.branch")
-        vendor_latest = self.advance(self.vendor, "SKILL.md")
-        latest = self.advance(self.upstream, "git-sync")
+    def test_installer_keeps_approved_submodule_versions_and_retires_autocommit(self):
+        recorded = self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD')
+        self.advance(self.vendor, "SKILL.md")
+        self.git(self.repo, 'config', 'branch.main.autocommitscript', 'exit 99')
         self.install(self.repo)
-        self.assertEqual(latest, self.git(self.repo / ".upstream/git-sync", "rev-parse", "HEAD"))
-        self.assertEqual(vendor_latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
-        vendor_latest = self.advance(self.vendor, "SKILL.md")
-        self.sync()
-        self.assertIn(vendor_latest, self.git(self.base / "skills.git", "ls-tree", "main", ".upstream/cursor-plugins"))
+        self.assertEqual(recorded, self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD'))
+        result = self.run_cmd(self.repo, GIT, 'config', '--get', 'branch.main.autocommitscript', success=False)
+        self.assertEqual(result.returncode, 1)
 
-    def test_three_machines_converge_including_git_sync_update(self):
+    def test_installer_preserves_a_locally_selected_submodule_revision(self):
+        latest = self.advance(self.vendor, 'SKILL.md')
+        submodule = self.repo / '.upstream/cursor-plugins'
+        self.git(submodule, 'fetch', 'origin', 'main')
+        self.git(submodule, 'checkout', latest)
+        result = self.run_cmd(self.repo, 'bash', 'install.sh', success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(latest, self.git(submodule, 'rev-parse', 'HEAD'))
+
+    def test_three_machines_download_the_same_approved_revision(self):
         others = [self.clone("computer-b"), self.clone("server")]
         for repo in others:
             self.install(repo)
-        self.advance(self.upstream, "git-sync")
         self.advance(self.vendor, "SKILL.md")
-        (self.repo / "skills/skill.md").write_text("Shared update\n")
-        self.sync()
-        for repo in others:
-            self.sync(repo, success=False)
-            # An identical submodule update can be dropped during rebase by
-            # upstream git-sync. Its next run must converge without a conflict.
+        self.git(self.seed, 'submodule', 'update', '--remote', '--checkout')
+        (self.seed / 'skills/skill.md').write_text('Approved shared update\n')
+        self.commit(self.seed, 'approve shared update')
+        self.git(self.seed, 'push', 'origin', 'main')
+        expected = self.git(self.seed, 'rev-parse', 'HEAD')
+        for repo in [self.repo, *others]:
             self.sync(repo)
-            self.assertEqual(self.git(self.repo, "rev-parse", "HEAD"),
-                             self.git(repo, "rev-parse", "HEAD"))
+            self.assertEqual(expected, self.git(repo, 'rev-parse', 'HEAD'))
             self.assertEqual(self.git(repo, "status", "--porcelain"), "")
 
     def test_uncommitted_submodule_changes_are_preserved(self):
@@ -262,9 +329,7 @@ class SyncTests(unittest.TestCase):
         shim = self.stubs / "git"
         shim.write_text(
             '#!/bin/bash\n'
-            # Model upstream changing after the automatic refresh.
-            'if [[ "$*" == "submodule update --init --remote --checkout" ]]; then exit 0; fi\n'
-            'if [[ "$*" == "submodule update --init --recursive" ]]; then exit 42; fi\n'
+            'if [[ "$*" == "submodule update --init --recursive --checkout" ]]; then exit 42; fi\n'
             'exec ' + GIT + ' "$@"\n'
         )
         shim.chmod(0o755)
@@ -277,17 +342,15 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
         self.assertEqual(expected, self.git(self.base / "skills.git", "rev-parse", "main"))
 
-    def test_conflict_stops_without_overwriting_remote(self):
-        other = self.clone("other")
-        self.install(other)
-        (self.repo / "skills/skill.md").write_text("Version A\n")
-        (other / "skills/skill.md").write_text("Version B\n")
-        self.sync()
-        remote_before = self.git(self.base / "skills.git", "rev-parse", "main")
-        self.assertNotEqual(self.sync(other, success=False).returncode, 0)
-        self.assertNotEqual(self.sync(other, success=False).returncode, 0)
-        self.assertEqual(remote_before, self.git(self.base / "skills.git", "rev-parse", "main"))
-        self.assertTrue((other / ".git/rebase-merge").exists())
+    def test_local_commits_are_never_pushed_or_rebased(self):
+        remote_before = self.git(self.base / 'skills.git', 'rev-parse', 'main')
+        (self.repo / 'skills/skill.md').write_text('Local version\n')
+        self.commit(self.repo, 'local commit')
+        local_before = self.git(self.repo, 'rev-parse', 'HEAD')
+        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.assertEqual(local_before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        self.assertEqual(remote_before, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
+        self.assertFalse((self.repo / '.git/rebase-merge').exists())
 
     def test_local_files_are_ignored_and_forced_tracking_is_rejected(self):
         local = self.repo / 'local.json'
@@ -296,7 +359,16 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(self.git(self.repo, 'ls-files', '--', 'local.json'), '')
         self.git(self.repo, 'add', '-f', 'local.json')
         result = self.sync(success=False)
-        self.assertIn('Outside the synchronization scope', result.stdout)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(local.read_text(), 'Machine-specific settings')
+
+    def test_ci_configuration_is_trackable_and_passes_the_repository_guard(self):
+        workflow = self.repo / '.github/workflows/ci.yml'
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text('name: CI\n')
+        (self.repo / 'package-lock.json').write_text('{}\n')
+        self.git(self.repo, 'add', '.github/workflows/ci.yml', 'package-lock.json')
+        self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', '--staged')
 
     def test_secret_in_shared_source_is_not_committed(self):
         before = self.git(self.repo, 'rev-parse', 'HEAD')
@@ -334,10 +406,12 @@ class SyncTests(unittest.TestCase):
             env.pop('CODEX_HOME', None)
             self.run_cmd(repo, 'bash', 'install.sh', env=env)
             environments.append(env)
-        registry = self.repo / 'mcp/servers.json'
+        registry = self.seed / 'mcp/servers.json'
         data = json.loads(registry.read_text())
         data['servers']['shared'] = {'transport': 'http', 'url': 'https://example.com/shared'}
         registry.write_text(json.dumps(data))
+        self.commit(self.seed, 'approve shared MCP')
+        self.git(self.seed, 'push', 'origin', 'main')
         for repo, env in zip((self.repo, other), environments):
             self.sync(repo, env=env)
             path = Path(env['HOME']) / '.codex/config.toml'

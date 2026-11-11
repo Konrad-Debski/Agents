@@ -1,0 +1,40 @@
+name: PR policy
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve latest Node 26
+        id: node-version
+        run: |
+          version=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(next(item["version"][1:] for item in json.load(sys.stdin) if item["version"].startswith("v26.") and "-" not in item["version"]))')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: ${{ runner.tool_cache }}/node/${{ steps.node-version.outputs.version }}
+          key: node-${{ runner.os }}-${{ runner.arch }}-${{ steps.node-version.outputs.version }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ steps.node-version.outputs.version }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run test:pr
+      - run: npm run check:pr

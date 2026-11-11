@@ -1,0 +1,4 @@
+# Remove this addition when actionlint recognizes GitHub's Ubuntu 26.04 runner.
+# https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration/
+self-hosted-runner:
+  labels: [ubuntu-26.04]

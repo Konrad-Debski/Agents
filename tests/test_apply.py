@@ -416,6 +416,16 @@ class ApplyTests(unittest.TestCase):
         self.run_apply(success=False)
         self.assertFalse((self.home / '.claude.json').exists())
 
+    def test_validate_rejects_non_string_oauth_environment_reference(self):
+        path, data = self.servers()
+        for invalid in (True, None, 42):
+            with self.subTest(invalid=invalid):
+                data['servers']['probe'] = {'transport': 'http', 'url': 'https://example.com/mcp',
+                    'oauth': {'client_id': 'client', 'client_secret_env': invalid}}
+                path.write_text(json.dumps(data))
+                result = self.run_apply(action='validate', success=False)
+                self.assertIn('client_secret_env', result.stderr)
+
     def test_doctor_reports_missing_environment_without_exposing_values(self):
         path, data = self.servers()
         data['servers']['context7']['requires_env'] = ['MISSING_AGENT_TEST_KEY']
@@ -745,6 +755,31 @@ class ApplyTests(unittest.TestCase):
         self.local([])
         self.run_apply()
         self.assertEqual(json.loads(path.read_text()), {'servers': {'personal': {'type': 'stdio', 'command': 'custom'}}})
+
+    def test_removing_last_managed_server_preserves_personal_inline_comment(self):
+        self.local(['vscode'])
+        registry, _ = self.servers()
+        probe = {'type': 'http', 'url': 'https://example.com/probe'}
+        registry.write_text(json.dumps({'version': 1, 'servers': {
+            'probe': {'transport': 'http', 'url': probe['url']}}}))
+        self.run_apply()
+        personal = '"personal": {"type":"stdio","command":"custom"}'
+        path = self.vscode_config('{"servers": {' + personal + ', // Personal server note\n'
+                                  '"probe": ' + json.dumps(probe) + '}}')
+        self.local([])
+        self.run_apply()
+        self.assertIn(personal + ' // Personal server note', path.read_text())
+        self.assertNotIn('"probe"', path.read_text())
+
+    def test_jsonc_rejects_non_json_whitespace_without_writing_configuration(self):
+        self.local(['vscode'])
+        for whitespace in ('\u00a0', '\v', '\x1f'):
+            with self.subTest(whitespace=repr(whitespace)):
+                original = '{"servers": {},' + whitespace + '"personal": 1}'
+                path = self.vscode_config(original)
+                self.run_apply(success=False)
+                self.assertEqual(path.read_text(), original)
+                self.assertFalse((self.state / 'agents/managed.json').exists())
 
     def test_vscode_autodetection_uses_xdg_directory(self):
         (self.config / 'Code/User').mkdir(parents=True)

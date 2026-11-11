@@ -11,6 +11,7 @@ A shared base of knowledge, skills and MCP configuration for AI agents. The repo
 - [Configuration and MCP](docs/operations/configuration.md): local settings, secrets, the server registry.
 - [Synchronization](docs/operations/synchronization.md): the timer, Git and submodules.
 - [Maintenance and tests](docs/contributing/maintenance.md): changes to this repository.
+- [CI and pull request checks](docs/contributing/ci.md): local checks and required GitHub results.
 - [Context management](docs/contributing/context-management.md): where to store knowledge and when to load it.
 - [Skill index](docs/skills/README.md): choosing a procedure when the harness does not show the catalog.
 - [Sources and decisions](docs/contributing/context-design.md): a summary of Kyle's video and the reasons for the knowledge split.
@@ -24,6 +25,6 @@ A shared base of knowledge, skills and MCP configuration for AI agents. The repo
 - `adapters/` describes the harness integrations.
 - `install.sh` is the installer. Run it once on a new computer.
 - `scripts/` holds `apply.sh` and `doctor.sh`, which you run by hand, and `agents.py`, which implements them.
-- `scripts/sync/` holds the scripts that the timer and `git-sync` run. Do not run them by hand.
+- `scripts/sync/run.sh` downloads approved changes for the timer. It never commits or pushes.
 - `tests/` checks the adapters and synchronization in isolated directories.
 - `.upstream/` holds external sources that update automatically.

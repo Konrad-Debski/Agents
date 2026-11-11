@@ -22,7 +22,7 @@ From Matt's repository we do not expose tracker procedures, environment generato
 
 ## Updating
 
-The gitlink in the parent repository sets the exact version of each source. The installer and synchronization automatically update all sources to the latest commits of their upstream branches. Synchronization commits and pushes the new gitlinks. The branch comes from `.gitmodules`, and without a `branch` entry Git uses the remote repository's default branch.
+The gitlink in the parent repository sets the exact approved version of each source. Installation and synchronization check out that version. To select a newer version, update the gitlink on a working branch and publish a pull request. The update branch comes from `.gitmodules`; without a `branch` entry Git uses the remote repository's default branch.
 
 When the task is to update one source:
 
@@ -31,7 +31,7 @@ git -C ~/.agents submodule update --init --remote --checkout -- .upstream/ponyta
 git -C ~/.agents submodule update --init --remote --checkout -- .upstream/mattpocock-skills
 ```
 
-Run only the command for the source you are updating. Check the diff, metadata and paths of the selected skills. If upstream changed them, fix the symlinks and the `skills` list in `package.json`. Do not edit files inside the submodule. Commit the new gitlink or leave that to synchronization. After the changes, run `apply` to refresh the Claude Code links. [synchronization.md](../operations/synchronization.md) describes this process in detail.
+Run only the command for the source you are updating, on a working branch. Check the diff, metadata and paths of the selected skills. If upstream changed them, fix the symlinks and the `skills` list in `package.json`. Do not edit files inside the submodule. Commit the new gitlink and publish a pull request. After the changes, run `apply` to refresh the Claude Code links. [synchronization.md](../operations/synchronization.md) describes this process in detail.
 
 Do not run Matt's `scripts/link-skills.sh` script, because it exposes a wider set than the one selected here. Fetching the repository into `.upstream/` alone does not install the whole package into the skill directory.
 

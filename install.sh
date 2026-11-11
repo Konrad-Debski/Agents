@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # The only script to run by hand on a new computer. It checks the requirements,
-# updates the submodules, deploys the configuration with scripts/apply.sh and
+# checks out approved submodules, deploys the configuration with scripts/apply.sh and
 # starts a systemd timer that runs scripts/sync/run.sh every 15 minutes.
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -22,14 +22,12 @@ repo_dir=$(git -C "$script_dir" rev-parse --show-toplevel)
 git_dir=$(git -C "$repo_dir" rev-parse --absolute-git-dir)
 state_dir="$git_dir/agents-sync"
 unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-upstream_script="$repo_dir/.upstream/git-sync/git-sync"
 
 [[ $(uname -s) == Linux ]] || fail 'The installer requires Linux with systemd.'
 systemctl --user show-environment >/dev/null || fail 'No access to the systemd user instance. Run the installer in the target user session, without sudo.'
 [[ $(git -C "$repo_dir" branch --show-current) == main ]] || fail 'Run the installation on the main branch.'
 [[ $(git -C "$repo_dir" config --get branch.main.remote) == origin ]] || fail 'The main branch must track origin/main.'
 [[ $(git -C "$repo_dir" config --get branch.main.merge) == refs/heads/main ]] || fail 'The main branch must track origin/main.'
-git -C "$repo_dir" var GIT_AUTHOR_IDENT >/dev/null || fail 'Set git config user.name and user.email.'
 
 python3 "$repo_dir/scripts/agents.py" validate
 python3 "$repo_dir/scripts/agents.py" guard
@@ -44,21 +42,22 @@ mkdir -p -- "$state_dir" "$unit_dir"
 exec 9>"$state_dir/lock"
 flock -w 30 9 || fail 'Synchronization is in progress. Run the installation again after it finishes.'
 
+# shellcheck source=scripts/sync/retire-legacy.sh
+source "$repo_dir/scripts/sync/retire-legacy.sh"
+retire_legacy_sync "$repo_dir" "$state_dir"
+[[ -z $(git -C "$repo_dir" status --porcelain) ]] || fail 'Local changes are preserved. Finish the pull request before installing.'
+
+# shellcheck disable=SC2016 # Git expands the variables in each submodule.
 git -C "$repo_dir" submodule foreach --quiet --recursive '
     test -z "$(git status --porcelain)" || {
         echo "Submodule $displaypath has uncommitted changes." >&2
         exit 1
     }
 '
-git -C "$repo_dir" submodule update --init --recursive
-git -C "$repo_dir" submodule update --init --remote --checkout
-bash -n "$upstream_script"
-git -C "$repo_dir" config --local branch.main.sync true
-git -C "$repo_dir" config --local branch.main.syncNewFiles true
-git -C "$repo_dir" config --local branch.main.syncSkipHooks false
-git -C "$repo_dir" config --local branch.main.pushRemote origin
-printf -v autocommit_command 'bash %q' "$repo_dir/scripts/sync/autocommit.sh"
-git -C "$repo_dir" config --local branch.main.autocommitscript "$autocommit_command"
+git -C "$repo_dir" submodule update --init --recursive --checkout
+for option in sync syncNewFiles syncSkipHooks autocommitscript; do
+    git -C "$repo_dir" config --local --unset-all "branch.main.$option" || [[ $? == 5 ]]
+done
 bash "$repo_dir/scripts/apply.sh"
 
 # systemd expands percent specifiers and, in ExecStart arguments, dollar signs.
@@ -126,4 +125,4 @@ else
     printf 'loginctl is missing. Check that the systemd user instance keeps running after logout.\n' >&2
 fi
 
-printf 'Updated all submodules to the latest upstream versions and enabled agents-sync.timer.\nThe first synchronization runs in about a minute, then every 15 minutes after the previous one ends.\nLogs: journalctl --user -u agents-sync.service\n'
+printf 'Installed approved submodule versions and enabled the download-only agents-sync.timer.\nThe first synchronization runs in about a minute, then every 15 minutes after the previous one ends.\nPublish changes through pull requests.\nLogs: journalctl --user -u agents-sync.service\n'
