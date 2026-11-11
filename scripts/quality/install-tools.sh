@@ -9,4 +9,4 @@ cd -- "$temporary"
 curl -fsSLo download-actionlint.bash https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
 mkdir -p -- "$destination"
 bash download-actionlint.bash latest "$destination"
-GOBIN="$destination" go install github.com/zricethezav/gitleaks/v8@latest
+GOBIN="$destination" go install "github.com/zricethezav/gitleaks/v8@${GITLEAKS_VERSION:-latest}"
