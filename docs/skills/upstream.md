@@ -7,7 +7,7 @@ Load when adding or updating external skills. The sources are submodules, and `s
 | Source | Symlinks in `skills/` | Use |
 | --- | --- | --- |
 | [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Editing text |
-| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-review` | Small implementation scope and reviewing theme changes |
+| [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-audit`, `ponytail-review` | Small implementation scope, reviewing changes and auditing a whole repository |
 | [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Section requirements, agent instructions, bug diagnosis, PR descriptions, retrospectives, work handoff, TDD and module design |
 
 `grilling` is a dependency of the current `grill-me`. Keeping only the alias would make its procedure impossible to run. `diagnosing-bugs` has its own script template, and `writing-for-agents` has a `SKILL-MECHANICS.md` file. The whole-directory symlink exposes these resources too.
