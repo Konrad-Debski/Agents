@@ -1,28 +1,28 @@
-# Źródła i decyzje organizacji wiedzy
+# Sources and decisions for organizing knowledge
 
-## Film i wnioski
+## The video and its conclusions
 
-Źródło: Kyle Cook, Web Dev Simplified, [Why Your AI Generates Crap Code - And How to Fix It](https://www.youtube.com/watch?v=jojMVmRZABw). Analiza opiera się na [transkrypcji całego filmu](https://transcriptly.libmap.cn/transcripts/jojMVmRZABw) oraz tytule i rozdziałach potwierdzonych w danych YouTube. Nie oceniano osobno obrazu demonstracji.
+Source: Kyle Cook, Web Dev Simplified, [Why Your AI Generates Crap Code - And How to Fix It](https://www.youtube.com/watch?v=jojMVmRZABw). The analysis is based on the [full video transcript](https://transcriptly.libmap.cn/transcripts/jojMVmRZABw) and on the title and chapters confirmed in YouTube data. The visuals of the demos were not reviewed separately.
 
-- Od 00:45 Kyle rozróżnia prompt systemowy, instrukcje, skille, dokumentację i kod. Każdy wczytany materiał zajmuje kontekst.
-- Od 03:55 pokazuje koszt rozbudowanych instrukcji, duplikacji i dopisywania kolejnych reguł po każdej pomyłce.
-- Od 07:23 proponuje krótkie instrukcje z warunkowymi odnośnikami do dokumentacji tematycznej. Jeden zawsze czytany, obszerny plik zastępczy zachowuje ten sam problem.
-- Od 13:53 omawia wspólne źródło `AGENTS.md` i `CLAUDE.md` przez symlink, a od 15:50 instrukcje dla wybranych części projektu.
-- Od 18:47 umieszcza powtarzalne, wyspecjalizowane zadania w skillach. Ich nazwy i opisy też zajmują kontekst, więc liczy się dobór zestawu i zwięzłość opisów.
+- From 00:45 Kyle separates the system prompt, instructions, skills, documentation and code. Every loaded piece of material takes up context.
+- From 03:55 he shows the cost of long instructions, duplication and adding another rule after every mistake.
+- From 07:23 he proposes short instructions with conditional links to topic documentation. A single large replacement file that is always read keeps the same problem.
+- From 13:53 he covers a shared source for `AGENTS.md` and `CLAUDE.md` through a symlink, and from 15:50 instructions for selected parts of a project.
+- From 18:47 he puts repeatable, specialized tasks in skills. Their names and descriptions also take up context, so the choice of skill set and short descriptions matter.
 
-## Przyjęte rozwiązania
+## Adopted solutions
 
-- Główny `AGENTS.md` zawiera wyłącznie mapę wiedzy i warunki odczytu.
-- Context7 ma jedno źródło procedury. Skill stylu jest dobierany do pisania, bez wymuszonego odczytu przy każdym zadaniu.
-- Dokumentacja ma katalogi `operations/`, `integrations/`, `contributing/` i `skills/`, zależnie od rodzaju pracy.
-- Warunkowe dane Famicord oraz referencje audytu WordPressa są obok odpowiednich skilli. Obowiązkowe kontrole i zasady publikacji pozostają w głównych procedurach.
-- Źródła Ponytail i Matt Pocock są przypięte w submodułach. Wybrane całe katalogi są udostępnione przez symlinki, z zachowaniem zależności i metadanych. Dobór opisuje [upstream.md](../skills/upstream.md).
-- Nowe skille Claude Code udostępnia istniejący adapter uruchamiany po synchronizacji. Testy obejmują dodanie skilla, aktualizację submodułu, usunięcie dowiązania i ochronę osobistych skilli.
+- The main `AGENTS.md` holds only the knowledge map and the conditions for reading each source.
+- Context7 has one procedure source. The style skill is chosen for writing tasks, without a forced read on every task.
+- The documentation has `operations/`, `integrations/`, `contributing/` and `skills/` directories, split by type of work.
+- Conditional Famicord data and the WordPress audit references sit next to the matching skills. Mandatory checks and publishing rules stay in the main procedures.
+- The Ponytail and Matt Pocock sources are pinned as submodules. Selected whole directories are exposed through symlinks, keeping their dependencies and metadata. [upstream.md](../skills/upstream.md) describes the selection.
+- The existing adapter, which runs after synchronization, exposes new skills to Claude Code. Tests cover adding a skill, updating a submodule, removing a link and protecting personal skills.
 
-## Sprawdzanie w rzeczywistych zadaniach
+## Checking with real tasks
 
-Po aktualizacji rozpocznij świeżą sesję harnessu, aby katalog skilli i instrukcje nie pochodziły z poprzedniej wersji. Dla działającego Claude Code można też użyć odświeżenia opisanego w [synchronization.md](../operations/synchronization.md).
+After an update, start a fresh harness session so the skill catalog and instructions do not come from the previous version. For a running Claude Code session you can also use the refresh described in [synchronization.md](../operations/synchronization.md).
 
-Przy kolejnych rzeczywistych zadaniach sprawdź dobór źródeł: pytanie o API powinno prowadzić do Context7, aktualizacja WP do `wp-update`, a zmiana instrukcji do zasad organizacji wiedzy. Raporty zadań nie powinny wymagać wczytania całego katalogu skilli. To obserwacja zachowania modeli, której same testy plików nie zastępują.
+During the next real tasks, check how sources get chosen. An API question should lead to Context7, a WP update to `wp-update`, and an instruction change to the knowledge organization rules. Task reports should not need the whole skill catalog loaded. This is an observation of model behavior, and file tests alone do not replace it.
 
-Dodatkowe skille dodawaj po rozpoznaniu brakującej procedury. [Zasady utrzymania kontekstu](context-management.md) opisują, gdzie zapisać nowe informacje.
+Add more skills after you identify a missing procedure. The [context management rules](context-management.md) describe where to store new information.

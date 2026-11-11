@@ -1,10 +1,10 @@
-# Synchronizacja
+# Synchronization
 
-Pierwszy przebieg następuje około minuty po instalacji, kolejne co 15 minut od zakończenia poprzedniego. Synchronizacja działa wyłącznie na `main`, automatycznie zapisuje także nowe i usunięte pliki źródłowe. Może zapisać trwającą edycję. Do pracy nad zmianami używaj osobnej gałęzi.
+The first run happens about a minute after installation, then every 15 minutes after the previous run ends. Synchronization works only on `main` and also commits new and deleted source files automatically. It can commit an edit in progress. Use a separate branch for work on changes.
 
-`.gitignore` dopuszcza tylko wspólne katalogi. Dodatkowa kontrola obejmuje również pliki już śledzone i lokalne niewysłane commity. Blokuje ścieżki poza zakresem, typowe pliki poświadczeń i rozpoznawane formaty tokenów. Nie zastępuje przeglądu zmian i nie wykrywa wszystkich możliwych sekretów.
+`.gitignore` allows only the shared directories. An extra check also covers already tracked files and local unpushed commits. It blocks paths outside the scope, common credential files and recognized token formats. It does not replace reviewing changes and does not detect every possible secret.
 
-Przed synchronizacją sprawdzamy rejestr MCP. Po udanej synchronizacji i aktualizacji submodułów ponownie sprawdzamy źródła oraz wykonujemy `apply`. Konflikt Gita zatrzymuje proces i wymaga ręcznego rozwiązania. Błąd wdrażania nie cofa synchronizacji Git; po usunięciu przyczyny ponów `apply`.
+Before synchronizing, we check the MCP registry. After a successful synchronization and submodule update, we check the sources again and run `apply`. A Git conflict stops the process and needs manual resolution. An apply error does not roll back the Git synchronization. After fixing the cause, run `apply` again.
 
 ```bash
 systemctl --user status agents-sync.timer
@@ -12,22 +12,22 @@ journalctl --user -u agents-sync.service -n 50 --no-pager
 systemctl --user start agents-sync.service
 ```
 
-Wyłączenie:
+Disabling:
 
 ```bash
 systemctl --user disable --now agents-sync.timer
 systemctl --user stop agents-sync.service
 ```
 
-Instalator próbuje włączyć działanie systemd po wylogowaniu przez `loginctl enable-linger`. Jeśli system odmówi, wyświetla polecenie dla administratora. Importuje `PATH` i bieżące `SSH_AUTH_SOCK`. Po zmianie agenta SSH uruchom instalator ponownie. Po restarcie uwierzytelnianie musi być dostępne dla usługi bez pytania o hasło.
+The installer tries to keep systemd running after logout with `loginctl enable-linger`. If the system refuses, it prints the command for an administrator. It imports `PATH` and the current `SSH_AUTH_SOCK`. After changing the SSH agent, run the installer again. After a reboot, authentication must be available to the service without a password prompt.
 
-## Submoduły
+## Submodules
 
-Instalator i każdy przebieg synchronizacji aktualizują wszystkie submoduły zadeklarowane w `.gitmodules` do najnowszych commitów upstream. Gałąź określa wpis `branch` w `.gitmodules`: `master` dla `git-sync` i `main` dla `cursor-plugins`. Bez tego wpisu, jak dla `ponytail` i `mattpocock-skills`, Git używa domyślnej gałęzi zdalnego repozytorium. Synchronizacja zapisuje i wysyła nowe wskazania submodułów do `origin/main`.
+The installer and every synchronization run update all submodules declared in `.gitmodules` to the latest upstream commits. The `branch` entry in `.gitmodules` sets the branch: `master` for `git-sync` and `main` for `cursor-plugins`. Without that entry, as for `ponytail` and `mattpocock-skills`, Git uses the remote repository's default branch. Synchronization commits the new submodule pointers and pushes them to `origin/main`.
 
-Nie edytuj plików wewnątrz submodułów. Niezapisane zmiany zatrzymują synchronizację. Wybrane skille dowiązujemy całymi katalogami, zachowując ich referencje i metadane. Codex pomija symlinki samego pliku `SKILL.md` podczas wykrywania skilli. Dobór nowych źródeł opisuje [upstream.md](../skills/upstream.md).
+Do not edit files inside submodules. Uncommitted changes stop synchronization. We link selected skills as whole directories, keeping their references and metadata. Codex ignores symlinks of the `SKILL.md` file itself during skill discovery. [upstream.md](../skills/upstream.md) describes choosing new sources.
 
-Pobranie zapisanych wersji:
+Fetching the committed versions:
 
 ```bash
 git -C ~/.agents pull --ff-only
@@ -35,26 +35,26 @@ git -C ~/.agents submodule update --init --recursive
 bash ~/.agents/scripts/apply.sh
 ```
 
-Ręczne pobranie najnowszych wersji wszystkich źródeł:
+Manually fetching the latest versions of all sources:
 
 ```bash
 git -C ~/.agents submodule update --init --remote --checkout
 bash ~/.agents/scripts/apply.sh
 ```
 
-Przy ręcznej aktualizacji zapisz nowe wskazania w commicie albo pozostaw to kolejnemu przebiegowi synchronizacji.
+After a manual update, commit the new pointers or leave that to the next synchronization run.
 
-## Dowiązania Claude Code
+## Claude Code links
 
-`apply` za każdym razem przegląda katalog `skills/`. Dla każdego katalogu z `SKILL.md`, także symlinku do submodułu, tworzy dowiązanie `~/.claude/skills/<nazwa>` do `~/.agents/skills/<nazwa>`. Przy ustawionym `CLAUDE_CONFIG_DIR` używa tego katalogu zamiast `~/.claude`.
+`apply` scans the `skills/` directory on every run. For each directory with a `SKILL.md`, including a symlink into a submodule, it creates a link `~/.claude/skills/<name>` to `~/.agents/skills/<name>`. When `CLAUDE_CONFIG_DIR` is set, it uses that directory instead of `~/.claude`.
 
-Nowy skill wymaga jednego przebiegu `apply`. Edycja treści istniejącego skilla jest od razu widoczna przez to samo dowiązanie. Usunięcie skilla usuwa tylko dowiązanie wcześniej zarządzane przez adapter. Osobiste katalogi i obce symlinki pozostają chronione; kolizja nazwy zatrzymuje wdrażanie.
+A new skill needs one `apply` run. Edits to an existing skill show up immediately through the same link. Removing a skill removes only a link the adapter managed before. Personal directories and foreign symlinks stay protected, and a name collision stops the apply.
 
-`sync.sh` wykonuje `apply.sh` po udanej synchronizacji Git i aktualizacji submodułów. Timer obejmuje więc także nowe i usunięte skille. Na gałęzi roboczej synchronizacja jest pomijana; dodane właśnie skille udostępnij od razu przez:
+`scripts/sync/run.sh` runs `apply.sh` after a successful Git synchronization and submodule update, so the timer also covers new and removed skills. On a working branch, synchronization is skipped. Expose newly added skills right away with:
 
 ```bash
 bash ~/.agents/scripts/apply.sh --dry-run
 bash ~/.agents/scripts/apply.sh
 ```
 
-Claude Code musi być wykryty lub obecny w jawnej liście `harnesses`. Przy wyłączonym timerze uruchamiaj `apply` ręcznie po dodaniu lub usunięciu skilla. [Claude Code obsługuje automatyczne odświeżanie skilli](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md). Jeśli uruchomiona sesja nie pokazuje zmiany pochodzącej z symlinku lub aktualizacji submodułu, użyj dostępnego w swojej wersji `/reload-skills` albo rozpocznij nową sesję. Sam adapter sprawdza pliki, a nie pamięć działającego procesu Claude.
+Claude Code must be detected or listed in the explicit `harnesses` list. With the timer disabled, run `apply` by hand after adding or removing a skill. [Claude Code supports automatic skill reloading](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md). If a running session does not show a change from a symlink or a submodule update, use `/reload-skills` if your version has it, or start a new session. The adapter checks files, not the memory of a running Claude process.
