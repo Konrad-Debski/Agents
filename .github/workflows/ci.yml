@@ -22,22 +22,46 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          submodules: recursive
           persist-credentials: false
+      - name: Resolve submodule revision
+        id: submodules
+        run: echo "revision=$(git rev-parse HEAD:.upstream)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: .git/modules
+          key: submodules-${{ runner.os }}-${{ steps.submodules.outputs.revision }}-${{ hashFiles('.gitmodules') }}
+      - name: Check out pinned submodules
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          submodule_auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $submodule_auth" \
+          git submodule update --init --recursive --checkout --depth=1 --jobs=3
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
           check-latest: true
-      - name: Resolve latest Gitleaks
-        id: gitleaks
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+      - name: Resolve quality tools
+        id: tools
         run: |
           version=$(curl -fsSL https://proxy.golang.org/github.com/zricethezav/gitleaks/v8/@latest | python -c 'import json, sys; print(json.load(sys.stdin)["Version"])')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "gitleaks-version=$version" >> "$GITHUB_OUTPUT"
+          curl -fsSLo "$RUNNER_TEMP/download-actionlint.bash" https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
+          echo "actionlint-script=$(sha256sum "$RUNNER_TEMP/download-actionlint.bash" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v5
         id: gitleaks-cache
         with:
           path: ${{ runner.temp }}/agents-tools/gitleaks
-          key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.gitleaks.outputs.version }}-${{ hashFiles('scripts/quality/install-tools.sh') }}
+          key: gitleaks-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.gitleaks-version }}-${{ hashFiles('scripts/quality/install-tools.sh') }}
+      - uses: actions/cache@v5
+        id: actionlint-cache
+        with:
+          path: ${{ runner.temp }}/agents-tools/actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.actionlint-script }}
       - uses: actions/setup-go@v7
         if: steps.gitleaks-cache.outputs.cache-hit != 'true'
         with:
@@ -46,15 +70,17 @@ jobs:
       - run: python -m pip install -r tests/requirements.txt
       - name: Install quality tools
         env:
-          GITLEAKS_VERSION: ${{ steps.gitleaks.outputs.version }}
+          GITLEAKS_VERSION: ${{ steps.tools.outputs.gitleaks-version }}
           GITLEAKS_CACHE_HIT: ${{ steps.gitleaks-cache.outputs.cache-hit }}
+          ACTIONLINT_CACHE_HIT: ${{ steps.actionlint-cache.outputs.cache-hit }}
         run: |
-          if [[ $GITLEAKS_CACHE_HIT == true ]]; then
+          mkdir -p "$RUNNER_TEMP/agents-tools"
+          if [[ $GITLEAKS_CACHE_HIT != true ]]; then
+            GOBIN="$RUNNER_TEMP/agents-tools" go install "github.com/zricethezav/gitleaks/v8@$GITLEAKS_VERSION"
+          fi
+          if [[ $ACTIONLINT_CACHE_HIT != true ]]; then
             cd "$RUNNER_TEMP"
-            curl -fsSLo download-actionlint.bash https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash
             bash download-actionlint.bash latest "$RUNNER_TEMP/agents-tools"
-          else
-            bash scripts/quality/install-tools.sh "$RUNNER_TEMP/agents-tools"
           fi
           echo "$RUNNER_TEMP/agents-tools" >> "$GITHUB_PATH"
       - run: bash scripts/check.sh static

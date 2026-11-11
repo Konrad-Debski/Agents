@@ -39,7 +39,18 @@ For a saved GitHub pull request event:
 npm run check:pr -- /absolute/path/to/event.json
 ```
 
-`ci.yml` runs static checks, repository validation, secret scanning and Python integration tests as steps of one `quality` job. They share one checkout, Python environment and tool installation. Python uses the latest stable Python 3 release, selected with `python-version: '3.x'` and `check-latest: true`. Each run resolves the current Gitleaks version from the Go module proxy and caches only its executable, keyed by that version, runner OS, architecture and installer script. On a cache miss, CI installs Go and builds that resolved version using `go install`. On a hit, it skips both steps. actionlint still uses its official download script on every run. Local installation defaults to `@latest`; `GITLEAKS_VERSION` lets CI build the version used in its cache key.
+`ci.yml` runs static checks, repository validation, secret scanning and Python integration tests as steps of one `quality` job. They share one checkout, Python environment and tool installation. Python uses the latest stable Python 3 release, selected with `python-version: '3.x'` and `check-latest: true`.
+
+CI caches downloads and installed tools:
+
+- pip packages use `setup-python`'s cache, invalidated by `tests/requirements.txt`.
+- npm packages use `setup-node`'s cache, invalidated by `package-lock.json`. `npm ci` still installs from that lockfile.
+- Node uses a distribution cache for the latest stable Node 26 version, resolved from the official release index on every run. The cached version directory includes the tool-cache completion marker.
+- Gitleaks caches only its executable, keyed by the current Go module version, runner OS, architecture and installer script. A miss installs Go and builds that version using `go install`; a hit skips both steps.
+- actionlint caches its executable by the digest of its official download script. The script is fetched on every run and selects the latest release; a changed script invalidates the executable cache.
+- Submodule Git data uses a cache keyed by the recorded `.upstream` tree and `.gitmodules`. Shallow submodule checkout always runs to materialize the pinned commits. The root repository's history is fetched on every run for commit checks and secret scanning.
+
+The large Go source and compilation cache is disabled: a measured 305 MB entry took 20 s to save. The small Gitleaks executable cache already covers repeated runs. Python's distribution comes from the runner image when available. Tests and static analysis always run, regardless of cache hits. Local tool installation defaults to `@latest`.
 
 `quality` uses `ubuntu-26.04`. A measured run on the single-CPU `ubuntu-slim` container passed every test but took 5 min 28 s, including 56 s for Python installation, 122 s for tool installation and 85 s for tests. The full Ubuntu runner provides more CPUs and preinstalled Python distributions. Synchronization tests simulate the systemd manager and use the installed `systemd-analyze` to validate generated units. CI requires this executable before running the suite so its absence cannot silently remove that validation. No running systemd instance, Docker daemon or privileged container is needed.
 
