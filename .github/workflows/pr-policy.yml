@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   pr-policy:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
@@ -25,4 +25,5 @@ jobs:
         with:
           node-version: '26'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run test:pr
       - run: npm run check:pr

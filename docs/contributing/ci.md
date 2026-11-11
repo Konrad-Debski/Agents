@@ -25,7 +25,7 @@ The installer installs only actionlint and Gitleaks. It uses actionlint's offici
 
 Secret scanning covers commits, not uncommitted edits. CI blocks a merge after a secret has already been pushed; it cannot undo that exposure. The local guard remains useful before publishing. Never paste real credentials into test fixtures.
 
-The full Git history and initialized submodules are required. CI checks out recorded gitlinks and never refreshes upstream branches. `guard` uses `origin/main`, so shallow checkouts are insufficient.
+The `quality` job needs full Git history for `guard` and secret scanning, and initialized submodules for the skill catalog. It checks out recorded gitlinks and never refreshes upstream branches. Its Python tests create disposable local repositories and submodules.
 
 ## Pull request policy
 
@@ -39,11 +39,13 @@ For a saved GitHub pull request event:
 npm run check:pr -- /absolute/path/to/event.json
 ```
 
-`ci.yml` runs quality checks and a single Python test job on the latest stable Python 3 release, selected with `python-version: '3.x'` and `check-latest: true`. Its final `ci-required` result fails if either job fails, is cancelled or is skipped. `pr-policy.yml` checks metadata and new commits, including after a title or body edit. Neither workflow uses path filters, write tokens, live MCP credentials or deployment secrets. Tests run in disposable HOME and XDG directories. Existing OpenCode CLI tests are optional and skip when a suitable client is not already installed; adapter tests still run without it.
+`ci.yml` runs static checks, repository validation, secret scanning and Python integration tests as steps of one `quality` job. They share one checkout, Python environment and tool installation. Python uses the latest stable Python 3 release, selected with `python-version: '3.x'` and `check-latest: true`. The job restores Go's module and compilation caches, keyed by the Go version and tool installation script. `go install ...@latest` still resolves the current Gitleaks release on every run; the cache reuses downloaded source and compiled packages, not a frozen tool binary.
+
+`quality` retains `ubuntu-24.04`. Go compilation benefits from its multiple CPUs, and synchronization tests use `systemd-analyze` to validate generated units. VM job setup took about two seconds in the measured run; tool installation was the larger cost. `pr-policy.yml` uses the smaller, single-CPU `ubuntu-slim` container to run the PR-policy tests and check metadata and new commits, including after a title or body edit. Both steps share its Node installation and npm dependencies, keeping Node out of `quality`. It needs neither Go nor systemd. Neither workflow uses path filters, write tokens, live MCP credentials or deployment secrets. Tests run in disposable HOME and XDG directories. Existing OpenCode CLI tests are optional and skip when a suitable client is not already installed; adapter tests still run without it.
 
 ## Enable merge enforcement
 
-Workflow files produce results; the repository ruleset makes them mandatory. `.github/rulesets/main.json` is the proposed ruleset. It retains signature, deletion and force-push protections, requires `ci-required` and `pr-policy` from the GitHub Actions app, requires an up-to-date branch and resolved review threads, and allows the repository's documented merge-commit method. Zero mandatory approvals supports the current single-maintainer workflow.
+Workflow files produce results; the repository ruleset makes them mandatory. `.github/rulesets/main.json` is the proposed ruleset. It retains signature, deletion and force-push protections, requires `quality` and `pr-policy` from the GitHub Actions app, requires an up-to-date branch and resolved review threads, and allows the repository's documented merge-commit method. Zero mandatory approvals supports the current single-maintainer workflow.
 
 First publish a PR containing the workflows and obtain successful results. Then inspect the current ruleset for concurrent changes and apply the prepared configuration in GitHub's repository settings. The rule names must match the job names exactly. Do not add a bypass for the retired publishing timer. Ruleset changes are separate from merging workflow files and are not applied by CI.
 
