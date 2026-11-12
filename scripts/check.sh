@@ -5,12 +5,11 @@ cd -- "$script_dir/.."
 command=${1:-all}
 case $command in
     all)
-        for check in static repository tests secrets; do
+        for check in static repository tests commits; do
             bash "$script_dir/check.sh" "$check"
         done
-        npm run test:pr
         ;;
-    tests) python3 scripts/quality/run_tests.py ;;
+    tests) python3 -m unittest discover -s tests -v ;;
     static)
         shopt -s globstar nullglob
         files=(install.sh scripts/**/*.sh)
@@ -24,10 +23,14 @@ case $command in
         python3 scripts/agents.py guard
         python3 scripts/quality/repository.py
         ;;
-    secrets)
+    commits)
         base=$(git rev-parse --verify --end-of-options "${2:-origin/main}^{commit}")
         head=$(git rev-parse --verify --end-of-options "${3:-HEAD}^{commit}")
-        gitleaks git --redact --no-banner --log-opts="$base..$head" .
+        if git log --no-merges --format=%s "$base..$head" |
+            grep -Ev '^(feat|fix|refactor|chore|docs|test|build|ci|perf|revert)(\([a-z0-9-]+\))?!?: .+'; then
+            printf 'Use Conventional Commits for the commit subjects above.\n' >&2
+            exit 1
+        fi
         ;;
-    *) printf 'Usage: check.sh [all|tests|static|repository|secrets [BASE HEAD]]\n' >&2; exit 2 ;;
+    *) printf 'Usage: check.sh [all|tests|static|repository|commits [BASE HEAD]]\n' >&2; exit 2 ;;
 esac

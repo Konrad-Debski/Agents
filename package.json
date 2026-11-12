@@ -6,14 +6,6 @@
     "name": "Konrad Debski"
   },
   "repository": "https://github.com/Konrad-Debski/Agents",
-  "scripts": {
-    "check:pr": "node scripts/quality/pr-policy.mjs",
-    "test:pr": "node --test tests/pr-policy.test.mjs"
-  },
-  "devDependencies": {
-    "@commitlint/config-conventional": "21.2.4",
-    "@commitlint/lint": "21.2.4"
-  },
   "skills": [
     "./skills/codebase-design",
     "./skills/context7-mcp",

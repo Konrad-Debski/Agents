@@ -5,7 +5,6 @@
 !/.gitignore
 !/.gitmodules
 !/package.json
-!/package-lock.json
 !/.github/
 !/install.sh
 !/skills/
@@ -33,6 +32,4 @@ __pycache__/
 *.tar
 *.zip
 *.gz
-node_modules/
-.hypothesis/
 .ruff_cache/
