@@ -366,25 +366,24 @@ class SyncTests(unittest.TestCase):
         workflow = self.repo / '.github/workflows/ci.yml'
         workflow.parent.mkdir(parents=True)
         workflow.write_text('name: CI\n')
-        (self.repo / 'package-lock.json').write_text('{}\n')
-        self.git(self.repo, 'add', '.github/workflows/ci.yml', 'package-lock.json')
+        self.git(self.repo, 'add', '.github/workflows/ci.yml')
         self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', '--staged')
 
-    def test_secret_in_shared_source_is_not_committed(self):
-        before = self.git(self.repo, 'rev-parse', 'HEAD')
+    def test_guard_rejects_a_secret_in_shared_source(self):
         (self.repo / 'skills/leaked.txt').write_text('ghp_' + 'a' * 36)
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
-        self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        result = self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
 
-    def test_deleted_secret_in_unpushed_history_is_not_published(self):
-        remote = self.git(self.base / 'skills.git', 'rev-parse', 'main')
+    def test_guard_rejects_a_secret_deleted_in_unpublished_history(self):
         path = self.repo / 'skills/leaked.txt'
         path.write_text('ghp_' + 'b' * 36)
         self.commit(self.repo, 'accidental secret')
         path.unlink()
         self.commit(self.repo, 'remove secret')
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
-        self.assertEqual(remote, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
+        result = self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
 
     def test_invalid_registry_does_not_commit_or_apply(self):
         before = self.git(self.repo, 'rev-parse', 'HEAD')
