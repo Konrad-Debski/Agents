@@ -6,6 +6,13 @@
     "name": "Konrad Debski"
   },
   "repository": "https://github.com/Konrad-Debski/Agents",
+  "scripts": {
+    "commitlint": "commitlint"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4"
+  },
   "skills": [
     "./skills/codebase-design",
     "./skills/context7-mcp",

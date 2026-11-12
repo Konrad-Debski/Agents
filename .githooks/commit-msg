@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Git runs hooks from the top of the working tree.
+# A real merge commit is skipped, as in check.sh commits.
+git rev-parse -q --verify MERGE_HEAD >/dev/null && exit 0
+if [[ -x node_modules/.bin/commitlint ]]; then
+    exec node_modules/.bin/commitlint --edit "$1"
+fi
+printf 'Warning: commitlint is not installed, so the commit message was not checked. Run npm ci.\n' >&2

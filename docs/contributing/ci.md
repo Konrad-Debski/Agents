@@ -1,11 +1,12 @@
 # CI and pull request checks
 
-Runtime installation needs only the Python standard library. Development checks need the pinned packages in `tests/requirements.txt`, which include the ShellCheck and actionlint executables. On Linux:
+Runtime installation needs only the Python standard library. Development checks need the pinned packages in `tests/requirements.txt`, which include the ShellCheck and actionlint executables, and Node.js 26 for commitlint. On Linux:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r tests/requirements.txt
+npm ci --ignore-scripts --no-audit --no-fund
 bash scripts/check.sh all
 ```
 
@@ -15,8 +16,8 @@ bash scripts/check.sh all
 
 - `static`: Bash syntax, ShellCheck, Ruff correctness rules and actionlint.
 - `repository`: MCP registry, synchronization scope, secrets in tracked files and new commits, and registered skill directories.
-- `tests`: the integration suite. It fails when no test runs.
-- `commits [BASE HEAD]`: Conventional Commits subjects of new non-merge commits. The default range is `origin/main..HEAD`.
+- `tests`: the integration suite. It fails when no test runs. The commitlint test skips without `node_modules`.
+- `commits [BASE HEAD]`: commitlint with `commitlint.config.mjs` on each new non-merge commit. The default range is `origin/main..HEAD`. Older commits on `main` do not follow the convention and are not checked.
 - `all`: all of the above.
 
 ## Secrets
@@ -25,13 +26,13 @@ GitHub secret scanning with push protection rejects a push that contains a known
 
 ## CI
 
-`ci.yml` runs every command in one `quality` job on `ubuntu-26.04`. The job needs full Git history for `guard` and the commit check, and initialized submodules for the skill catalog. It checks out the recorded gitlinks and never refreshes upstream branches. pip packages are cached by `tests/requirements.txt`.
+`ci.yml` runs every command in one `quality` job on `ubuntu-26.04`. The job needs full Git history for `guard` and the commit check, and initialized submodules for the skill catalog. It checks out the recorded gitlinks and never refreshes upstream branches. pip packages are cached by `tests/requirements.txt` and npm packages by `package-lock.json`.
 
 Synchronization tests simulate the systemd manager and validate generated units with the installed `systemd-analyze`. CI requires this executable, so its absence cannot silently skip that validation. The OpenCode CLI tests skip when the client is not installed. Tests run in disposable HOME and XDG directories and use no credentials.
 
 ## Pull requests
 
-Use a branch such as `fix/preserve-comments` and a matching title such as `fix: Preserve Comments`. Fill in the repository template: `Summary`, `Evidence` with `Before` and `After`, and `Merge Danger` with `Door` and `Blast Radius`. CI does not check the description.
+Use a branch such as `fix/preserve-comments` and a matching title such as `fix: Preserve Comments`. The `commit-msg` hook in `.githooks` checks each commit message locally; [maintenance.md](maintenance.md) shows how to enable it. Fill in the repository template: `Summary`, `Evidence` with `Before` and `After`, and `Merge Danger` with `Door` and `Blast Radius`. CI does not check the description.
 
 `.github/rulesets/main.json` is the proposed ruleset. It keeps signature, deletion and force-push protections, requires `quality`, an up-to-date branch and resolved review threads, and allows merge commits. Apply it in the repository settings; CI does not apply it. The required check name must match the job name.
 

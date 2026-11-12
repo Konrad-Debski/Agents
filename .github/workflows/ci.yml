@@ -33,6 +33,12 @@ jobs:
       - run: python -m pip install -r tests/requirements.txt
       - run: bash scripts/check.sh static
       - run: bash scripts/check.sh repository
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check new commit messages
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}

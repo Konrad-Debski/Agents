@@ -42,7 +42,11 @@ class QualityTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('missing', result.stdout + result.stderr)
 
+    @unittest.skipUnless((ROOT / 'node_modules/.bin/commitlint').exists(), 'Run npm ci to test commitlint')
     def test_commits_command_rejects_only_nonconventional_subjects(self):
+        for name in ('package.json', 'commitlint.config.mjs'):
+            shutil.copy(ROOT / name, self.repo)
+        (self.repo / 'node_modules').symlink_to(ROOT / 'node_modules')
         self.git('commit', '--allow-empty', '-m', 'Legacy base message')
         base = self.git('rev-parse', 'HEAD')
         self.git('switch', '-c', 'side')
@@ -55,4 +59,4 @@ class QualityTests(unittest.TestCase):
         self.git('commit', '--allow-empty', '-m', 'Forgot the commit type')
         result = self.check('commits', base, 'HEAD')
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Forgot the commit type', result.stdout)
+        self.assertIn('Forgot the commit type', result.stdout + result.stderr)

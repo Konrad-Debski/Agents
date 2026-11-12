@@ -5,7 +5,10 @@
 !/.gitignore
 !/.gitmodules
 !/package.json
+!/package-lock.json
+!/commitlint.config.mjs
 !/.github/
+!/.githooks/
 !/install.sh
 !/skills/
 !/mcp/
@@ -32,4 +35,5 @@ __pycache__/
 *.tar
 *.zip
 *.gz
+node_modules/
 .ruff_cache/

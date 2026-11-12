@@ -12,7 +12,7 @@ case $command in
     tests) python3 -m unittest discover -s tests -v ;;
     static)
         shopt -s globstar nullglob
-        files=(install.sh scripts/**/*.sh)
+        files=(install.sh .githooks/commit-msg scripts/**/*.sh)
         for file in "${files[@]}"; do bash -n "$file"; done
         shellcheck "${files[@]}"
         python3 -m ruff check --isolated --no-cache --select E9,F scripts tests
@@ -26,11 +26,10 @@ case $command in
     commits)
         base=$(git rev-parse --verify --end-of-options "${2:-origin/main}^{commit}")
         head=$(git rev-parse --verify --end-of-options "${3:-HEAD}^{commit}")
-        if git log --no-merges --format=%s "$base..$head" |
-            grep -Ev '^(feat|fix|refactor|chore|docs|test|build|ci|perf|revert)(\([a-z0-9-]+\))?!?: .+'; then
-            printf 'Use Conventional Commits for the commit subjects above.\n' >&2
-            exit 1
-        fi
+        # commitlint cannot skip merges by parent count, so it reads each non-merge commit.
+        for commit in $(git rev-list --no-merges "$base..$head"); do
+            git log -1 --format=%B "$commit" | npx --no-install commitlint
+        done
         ;;
     *) printf 'Usage: check.sh [all|tests|static|repository|commits [BASE HEAD]]\n' >&2; exit 2 ;;
 esac

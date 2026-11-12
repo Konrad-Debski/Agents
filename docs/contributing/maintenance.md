@@ -11,6 +11,15 @@ The repository is installed as `~/.agents`. The global `AGENTS.md` is the knowle
 
 Before handing off changes, run `bash scripts/check.sh all`. [CI and pull request checks](ci.md) describes dependency setup and the required GitHub results.
 
+On a development machine, enable the commit message check once:
+
+```bash
+npm ci
+git config core.hooksPath .githooks
+```
+
+The `commit-msg` hook runs commitlint. Without `node_modules` it only prints a warning, so machines that only synchronize need no Node.js. `git commit --no-verify` skips the hook; CI checks the same commits again.
+
 Install on the target computer with `bash ~/.agents/install.sh`, without `sudo`. [installation.md](../operations/installation.md) lists the current requirements.
 
 ## Commits and branches
