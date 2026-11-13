@@ -7,12 +7,11 @@
   },
   "repository": "https://github.com/Konrad-Debski/Agents",
   "scripts": {
-    "check:pr": "node scripts/quality/pr-policy.mjs",
-    "test:pr": "node --test tests/pr-policy.test.mjs"
+    "commitlint": "commitlint"
   },
   "devDependencies": {
-    "@commitlint/config-conventional": "21.2.4",
-    "@commitlint/lint": "21.2.4"
+    "@commitlint/cli": "21.2.4",
+    "@commitlint/config-conventional": "21.2.4"
   },
   "skills": [
     "./skills/codebase-design",

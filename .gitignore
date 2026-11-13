@@ -6,7 +6,9 @@
 !/.gitmodules
 !/package.json
 !/package-lock.json
+!/commitlint.config.mjs
 !/.github/
+!/.githooks/
 !/install.sh
 !/skills/
 !/mcp/
@@ -34,5 +36,4 @@ __pycache__/
 *.zip
 *.gz
 node_modules/
-.hypothesis/
 .ruff_cache/

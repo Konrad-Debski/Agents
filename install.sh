@@ -125,4 +125,6 @@ else
     printf 'loginctl is missing. Check that the systemd user instance keeps running after logout.\n' >&2
 fi
 
+bash "$repo_dir/scripts/plugins.sh"
+
 printf 'Installed approved submodule versions and enabled the download-only agents-sync.timer.\nThe first synchronization runs in about a minute, then every 15 minutes after the previous one ends.\nPublish changes through pull requests.\nLogs: journalctl --user -u agents-sync.service\n'

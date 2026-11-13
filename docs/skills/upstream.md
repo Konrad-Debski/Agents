@@ -14,7 +14,9 @@ Load when adding or updating external skills. The sources are submodules, and `s
 
 The skills are general and apply to PHP, Twig, ACF, CSS and TypeScript in themes. They bring no ready conventions for a specific theme, so the agent still follows the project instructions.
 
-The other skills are available in the sources but have no global symlinks. We skip the Ponytail package installer, hooks and global rules, so adding the source does not force a read on every task. `ponytail` has a broad invocation description and, once started, stays active for the session. We keep the author's behavior. We do not add it to the main `AGENTS.md`.
+The other skills are available in the sources but have no global symlinks. `ponytail` has a broad invocation description and, once started, stays active for the session. We keep the author's behavior. We do not add it to the main `AGENTS.md`.
+
+In Claude Code and Codex the installer also installs Ponytail as a plugin with the author's commands from [INSTALL.md](../../.upstream/ponytail/INSTALL.md), using `.upstream/ponytail` as the marketplace for Claude Code. Codex uses the marketplace in `adapters/codex`, which points at the same submodule, because the author's Codex marketplace fetches his `main` branch. The plugin adds the author's hooks, so every session there starts with the Ponytail rules at the `full` level, and Claude Code passes them to subagents. `/ponytail default <level>` changes the starting level and `/ponytail off` turns the rules off for a session. The plugin exposes all six Ponytail skills next to the three symlinked ones. The hooks need `node` in the `PATH` of the harness. In Codex, open `/hooks` once and trust the Ponytail hooks. Cursor, OpenCode and VS Code get only the symlinked skills.
 
 `pr` from `engineering/pr` sets the PR description content. The repository's own `create-pr` runs publishing and merging through the shared protocol, which `pr` reads when preparing a description.
 
@@ -32,6 +34,8 @@ git -C ~/.agents submodule update --init --remote --checkout -- .upstream/mattpo
 ```
 
 Run only the command for the source you are updating, on a working branch. Check the diff, metadata and paths of the selected skills. If upstream changed them, fix the symlinks and the `skills` list in `package.json`. Do not edit files inside the submodule. Commit the new gitlink and publish a pull request. After the changes, run `apply` to refresh the Claude Code links. [synchronization.md](../operations/synchronization.md) describes this process in detail.
+
+Claude Code loads the Ponytail plugin from `.upstream/ponytail`, so the gitlink also sets the plugin version. Codex copies the plugin from the submodule when `codex plugin add ponytail@agents` runs. Synchronization runs `scripts/plugins.sh` after each downloaded commit, which refreshes the copy after a gitlink update.
 
 Do not run Matt's `scripts/link-skills.sh` script, because it exposes a wider set than the one selected here. Fetching the repository into `.upstream/` alone does not install the whole package into the skill directory.
 

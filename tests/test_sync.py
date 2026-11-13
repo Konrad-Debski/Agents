@@ -56,7 +56,7 @@ class SyncTests(unittest.TestCase):
         self.seed = self.new_remote("skills", "main")
         shutil.copytree(ROOT / "scripts", self.seed / "scripts")
         for directory in ("adapters", "mcp"):
-            shutil.copytree(ROOT / directory, self.seed / directory)
+            shutil.copytree(ROOT / directory, self.seed / directory, symlinks=True)
         shutil.copy(ROOT / ".gitignore", self.seed)
         shutil.copy(ROOT / "install.sh", self.seed)
         shutil.copy(ROOT / "AGENTS.md", self.seed)
@@ -259,6 +259,30 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(installed.is_symlink())
         self.assertEqual(personal.read_text(), 'Personal skill\n')
 
+    def test_sync_reinstalls_the_codex_plugin_once_per_downloaded_commit(self):
+        log = self.base / 'codex.log'
+        stub = self.stubs / 'codex'
+        stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$*" >> "{log}"\n')
+        stub.chmod(0o755)
+        # Keep a locally installed Claude Code out of the test.
+        (self.stubs / 'claude').write_text('#!/bin/bash\n')
+        (self.stubs / 'claude').chmod(0o755)
+        (self.vendor / '.claude-plugin').mkdir()
+        (self.vendor / '.claude-plugin/plugin.json').write_text('{}\n')
+        self.commit(self.vendor, 'plugin manifest')
+        self.git(self.vendor, 'push', 'origin', 'main')
+        self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/ponytail')
+        self.commit(self.seed, 'add ponytail')
+        self.git(self.seed, 'push', 'origin', 'main')
+        expected = f'plugin marketplace add {self.repo}/adapters/codex\nplugin add ponytail@agents\n'
+        self.sync()
+        self.assertEqual(log.read_text(), expected)
+        self.sync()
+        self.assertEqual(log.read_text(), expected)
+        self.advance(self.seed, 'AGENTS.md')
+        self.sync()
+        self.assertEqual(log.read_text(), expected * 2)
+
     def test_unapproved_upstream_updates_are_not_installed_or_published(self):
         recorded = self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD')
         before = self.git(self.repo, 'rev-parse', 'HEAD')
@@ -366,25 +390,24 @@ class SyncTests(unittest.TestCase):
         workflow = self.repo / '.github/workflows/ci.yml'
         workflow.parent.mkdir(parents=True)
         workflow.write_text('name: CI\n')
-        (self.repo / 'package-lock.json').write_text('{}\n')
-        self.git(self.repo, 'add', '.github/workflows/ci.yml', 'package-lock.json')
+        self.git(self.repo, 'add', '.github/workflows/ci.yml')
         self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', '--staged')
 
-    def test_secret_in_shared_source_is_not_committed(self):
-        before = self.git(self.repo, 'rev-parse', 'HEAD')
+    def test_guard_rejects_a_secret_in_shared_source(self):
         (self.repo / 'skills/leaked.txt').write_text('ghp_' + 'a' * 36)
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
-        self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        result = self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
 
-    def test_deleted_secret_in_unpushed_history_is_not_published(self):
-        remote = self.git(self.base / 'skills.git', 'rev-parse', 'main')
+    def test_guard_rejects_a_secret_deleted_in_unpublished_history(self):
         path = self.repo / 'skills/leaked.txt'
         path.write_text('ghp_' + 'b' * 36)
         self.commit(self.repo, 'accidental secret')
         path.unlink()
         self.commit(self.repo, 'remove secret')
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
-        self.assertEqual(remote, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
+        result = self.run_cmd(self.repo, 'python3', 'scripts/agents.py', 'guard', success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
 
     def test_invalid_registry_does_not_commit_or_apply(self):
         before = self.git(self.repo, 'rev-parse', 'HEAD')

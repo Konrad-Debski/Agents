@@ -14,27 +14,21 @@ concurrency:
 
 jobs:
   pr-policy:
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Resolve latest Node 26
-        id: node-version
-        run: |
-          version=$(curl -fsSL https://nodejs.org/dist/index.json | python3 -c 'import json, sys; print(next(item["version"][1:] for item in json.load(sys.stdin) if item["version"].startswith("v26.") and "-" not in item["version"]))')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v5
-        with:
-          path: ${{ runner.tool_cache }}/node/${{ steps.node-version.outputs.version }}
-          key: node-${{ runner.os }}-${{ runner.arch }}-${{ steps.node-version.outputs.version }}
       - uses: actions/setup-node@v7
         with:
-          node-version: ${{ steps.node-version.outputs.version }}
+          node-version: 26
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm run test:pr
-      - run: npm run check:pr
+      - run: python3 scripts/quality/pr_policy.py
+      - name: Check new commit messages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/check.sh commits "$BASE_SHA" HEAD
