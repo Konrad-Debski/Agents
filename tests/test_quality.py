@@ -1,4 +1,5 @@
 """Exercise quality commands in disposable repositories."""
+import json
 import os
 from pathlib import Path
 import shutil
@@ -60,3 +61,32 @@ class QualityTests(unittest.TestCase):
         result = self.check('commits', base, 'HEAD')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Forgot the commit type', result.stdout + result.stderr)
+
+    @unittest.skipUnless((ROOT / 'node_modules/.bin/commitlint').exists(), 'Run npm ci to test commitlint')
+    def test_pr_policy_checks_title_branch_and_description(self):
+        body = ('## Summary\nKeep private comments.\n## Evidence\n**Before:** The comment was deleted.\n'
+                '**After:** The test keeps it.\n## Merge Danger\n**Door:** two-way\n**Blast Radius:** configuration\n')
+
+        def run(title='fix: Preserve Private Comments', branch='fix/private-comments', body=body, base='main'):
+            event = self.repo / 'event.json'
+            event.write_text(json.dumps({'pull_request': {'title': title, 'body': body, 'head': {'ref': branch}, 'base': {'ref': base}}}))
+            return subprocess.run(['python3', str(ROOT / 'scripts/quality/pr_policy.py'), str(event)],
+                                  cwd=self.repo, env=self.env, capture_output=True, text=True, timeout=30)
+
+        for arguments in ({}, {'title': '[ALTER-65] fix: Preserve Private Comments', 'branch': 'fix/ALTER-65-private-comments'},
+                          {'title': 'fix: Keep $(touch injected) literal'}):
+            result = run(**arguments)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((self.repo / 'injected').exists())
+        for arguments, message in (
+                ({'title': 'Preserve Private Comments'}, 'commitlint'),
+                ({'title': 'feat: Preserve Private Comments'}, 'branch'),
+                ({'branch': 'fix/Private_Comments'}, 'branch'),
+                ({'base': 'develop'}, 'base'),
+                ({'body': ''}, 'Summary'),
+                ({'body': body.replace('**Before:** The comment was deleted.', '**Before:** <!-- explain -->')}, 'Before'),
+                ({'body': body.replace('**Door:** two-way', '**Door:** <!-- choose one -->')}, 'Door')):
+            with self.subTest(arguments=arguments):
+                result = run(**arguments)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
