@@ -8,3 +8,6 @@
 [submodule ".upstream/mattpocock-skills"]
 	path = .upstream/mattpocock-skills
 	url = https://github.com/mattpocock/skills.git
+[submodule ".upstream/wordpress-agent-skills"]
+	path = .upstream/wordpress-agent-skills
+	url = https://github.com/WordPress/agent-skills.git
