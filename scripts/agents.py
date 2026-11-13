@@ -391,8 +391,14 @@ def merge_mcp(path, fmt, old, desired):
             stop = text.index(END) + len(END)
             require(stop > start, f'{path}: markers in reverse order')
             managed = text[start:stop]
-            text = text[:start] + text[stop:]
-        require(tomllib.loads(managed).get('mcp_servers', {}) == old, f'{path}: managed block was changed by hand or state is missing')
+            # Codex adds new tables above a trailing comment, so they land before END. Move them out.
+            body = toml_block(old)[:-len(END)]
+            foreign = managed[len(body):-len(END)] if old and managed.startswith(body) else ''
+            managed = managed[:len(managed) - len(END) - len(foreign)] + END
+            text = text[:start] + foreign + text[stop:]
+        block = tomllib.loads(managed)
+        require(not (set(block) - {'mcp_servers'}), f'{path}: foreign settings inside the managed block; move them below its END line')
+        require(block.get('mcp_servers', {}) == old, f'{path}: managed block was changed by hand or state is missing')
         remaining = tomllib.loads(text).get('mcp_servers', {})
         # A local [mcp_servers.NAME.oauth] table may hold the client secret of a managed server.
         local = {name: remaining[name] for name in set(remaining) & set(desired)}

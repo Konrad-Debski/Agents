@@ -380,6 +380,28 @@ class ApplyTests(unittest.TestCase):
         codex.write_text('[mcp_servers.google-sheets-official]\nurl = "https://personal.example/mcp"\n')
         self.run_apply(success=False)
 
+    def test_codex_tables_written_inside_the_managed_block_are_kept(self):
+        self.local(['codex'])
+        self.run_apply()
+        codex = self.home / '.codex/config.toml'
+        end = '# END agents managed MCP\n'
+        plugin = '\n[marketplaces.agents]\nsource = "/checkout/adapters/codex"\n\n[plugins."ponytail@agents"]\nenabled = true\n'
+        managed = codex.read_text()
+        # Codex inserts new tables above a trailing comment, which is the END line.
+        codex.write_text(managed.replace(end, plugin + end))
+        self.run_apply()
+        data = tomllib.loads(codex.read_text())
+        self.assertEqual(data['plugins'], {'ponytail@agents': {'enabled': True}})
+        self.assertEqual(data['marketplaces'], {'agents': {'source': '/checkout/adapters/codex'}})
+        self.assertIn('context7', data['mcp_servers'])
+        self.assertLess(codex.read_text().index('[plugins.'), codex.read_text().index('# BEGIN agents managed MCP'))
+        self.assertNotIn('Plan:', self.run_apply('--dry-run').stdout)
+        # A block that no longer matches what apply wrote is not rewritten over foreign tables.
+        codex.write_text(managed.replace('[mcp_servers."context7"]', '[mcp_servers.context7]').replace(end, plugin + end))
+        before = codex.read_bytes()
+        self.assertIn('foreign settings inside the managed block', self.run_apply(success=False).stderr)
+        self.assertEqual(before, codex.read_bytes())
+
     def test_codex_and_claude_report_missing_local_oauth_secret(self):
         self.local(['codex', 'claude-code'])
         result = self.run_apply()
