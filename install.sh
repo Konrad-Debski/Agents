@@ -125,17 +125,6 @@ else
     printf 'loginctl is missing. Check that the systemd user instance keeps running after logout.\n' >&2
 fi
 
-# Ponytail's hooks come only with its plugin, so use the author's own install commands.
-ponytail="$repo_dir/.upstream/ponytail"
-if [[ -d "$ponytail/.claude-plugin" ]]; then
-    if command -v claude >/dev/null; then
-        { claude plugin marketplace add "$ponytail" && claude plugin install ponytail@ponytail; } ||
-            printf 'The Ponytail plugin for Claude Code was not installed. See .upstream/ponytail/INSTALL.md.\n' >&2
-    fi
-    if command -v codex >/dev/null; then
-        { codex plugin marketplace add "$ponytail" && codex plugin add ponytail@ponytail; } ||
-            printf 'The Ponytail plugin for Codex was not installed. See .upstream/ponytail/INSTALL.md.\n' >&2
-    fi
-fi
+bash "$repo_dir/scripts/plugins.sh"
 
 printf 'Installed approved submodule versions and enabled the download-only agents-sync.timer.\nThe first synchronization runs in about a minute, then every 15 minutes after the previous one ends.\nPublish changes through pull requests.\nLogs: journalctl --user -u agents-sync.service\n'

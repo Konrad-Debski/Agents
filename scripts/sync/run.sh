@@ -65,3 +65,8 @@ rm -f -- "$pending"
 python3 scripts/agents.py guard
 python3 scripts/agents.py validate
 bash scripts/apply.sh
+# Plugins are reinstalled once per synchronized commit, not on every timer run.
+if [[ $(cat "$state_dir/plugins-head" 2>/dev/null) != $(git rev-parse HEAD) ]]; then
+    bash scripts/plugins.sh
+    git rev-parse HEAD >"$state_dir/plugins-head"
+fi

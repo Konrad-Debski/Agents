@@ -56,7 +56,7 @@ class SyncTests(unittest.TestCase):
         self.seed = self.new_remote("skills", "main")
         shutil.copytree(ROOT / "scripts", self.seed / "scripts")
         for directory in ("adapters", "mcp"):
-            shutil.copytree(ROOT / directory, self.seed / directory)
+            shutil.copytree(ROOT / directory, self.seed / directory, symlinks=True)
         shutil.copy(ROOT / ".gitignore", self.seed)
         shutil.copy(ROOT / "install.sh", self.seed)
         shutil.copy(ROOT / "AGENTS.md", self.seed)
@@ -258,6 +258,30 @@ class SyncTests(unittest.TestCase):
         self.sync(env=env)
         self.assertFalse(installed.is_symlink())
         self.assertEqual(personal.read_text(), 'Personal skill\n')
+
+    def test_sync_reinstalls_the_codex_plugin_once_per_downloaded_commit(self):
+        log = self.base / 'codex.log'
+        stub = self.stubs / 'codex'
+        stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$*" >> "{log}"\n')
+        stub.chmod(0o755)
+        # Keep a locally installed Claude Code out of the test.
+        (self.stubs / 'claude').write_text('#!/bin/bash\n')
+        (self.stubs / 'claude').chmod(0o755)
+        (self.vendor / '.claude-plugin').mkdir()
+        (self.vendor / '.claude-plugin/plugin.json').write_text('{}\n')
+        self.commit(self.vendor, 'plugin manifest')
+        self.git(self.vendor, 'push', 'origin', 'main')
+        self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/ponytail')
+        self.commit(self.seed, 'add ponytail')
+        self.git(self.seed, 'push', 'origin', 'main')
+        expected = f'plugin marketplace add {self.repo}/adapters/codex\nplugin add ponytail@agents\n'
+        self.sync()
+        self.assertEqual(log.read_text(), expected)
+        self.sync()
+        self.assertEqual(log.read_text(), expected)
+        self.advance(self.seed, 'AGENTS.md')
+        self.sync()
+        self.assertEqual(log.read_text(), expected * 2)
 
     def test_unapproved_upstream_updates_are_not_installed_or_published(self):
         recorded = self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD')

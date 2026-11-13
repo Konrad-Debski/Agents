@@ -22,7 +22,7 @@ class ApplyTests(unittest.TestCase):
         self.repo = self.home / '.agents'
         self.repo.mkdir(parents=True)
         for directory in ('scripts', 'adapters', 'mcp'):
-            shutil.copytree(ROOT / directory, self.repo / directory)
+            shutil.copytree(ROOT / directory, self.repo / directory, symlinks=True)
         (self.repo / 'AGENTS.md').write_text('Shared instructions\n')
         skill = self.repo / 'skills/example'
         skill.mkdir(parents=True)
