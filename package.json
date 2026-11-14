@@ -31,6 +31,9 @@
     "./skills/tdd",
     "./skills/unslop",
     "./skills/wp-audit",
+    "./skills/wp-performance",
+    "./skills/wp-phpstan",
+    "./skills/wp-project-triage",
     "./skills/wp-update",
     "./skills/wp-update-list",
     "./skills/writing-for-agents"
