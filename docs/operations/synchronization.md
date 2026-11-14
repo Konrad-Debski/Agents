@@ -6,7 +6,7 @@ Local edits, untracked source files, local commits and unfinished Git operations
 
 `.gitignore` allows only the shared directories. An extra check also covers already tracked files and local unpushed commits. It blocks paths outside the scope, common credential files and recognized token formats. It does not replace reviewing changes and does not detect every possible secret.
 
-After downloading the approved revision and its recorded submodule versions, we check the synchronization scope and MCP registry, then run `apply`. After a new commit, synchronization also runs `scripts/plugins.sh`, which reinstalls the Ponytail plugin in Claude Code and Codex. A failed validation leaves the previous harness configuration in place. An apply error does not roll back the Git download. After fixing the cause, run `apply` again. Failed submodule checkouts leave a marker so the next run can retry the approved versions. Local edits inside submodules still stop the retry.
+After downloading the approved revision and its recorded submodule versions, we check the synchronization scope and MCP registry, then run `apply`. After a new commit, synchronization also runs `scripts/plugins.sh`, which reinstalls the Ponytail plugin in Claude Code and Codex and the LSP plugins in Claude Code. A failed validation leaves the previous harness configuration in place. An apply error does not roll back the Git download. After fixing the cause, run `apply` again. Failed submodule checkouts leave a marker so the next run can retry the approved versions. Local edits inside submodules still stop the retry.
 
 ```bash
 systemctl --user status agents-sync.timer
