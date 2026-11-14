@@ -12,7 +12,7 @@ bash "$HOME/.agents/install.sh"
 bash "$HOME/.agents/scripts/doctor.sh"
 ```
 
-The installer detects harnesses by their directories or by their programs in `PATH`. It creates the configuration and starts `agents-sync.timer`. When `claude` or `codex` is in `PATH`, it also installs the [Ponytail plugin](../skills/upstream.md) there. Running the command again updates the installation without duplicates. Moving the repository requires a reinstall. With existing collisions, first merge your own instructions or give the local MCP server a different name. The installer does not replace a different instructions file or a foreign symlink.
+The installer detects harnesses by their directories or by their programs in `PATH`. It creates the configuration and starts `agents-sync.timer`. When `claude` or `codex` is in `PATH`, it also installs the [Ponytail plugin](../skills/upstream.md) there. Claude Code also gets the PHP and TypeScript [LSP plugins](../integrations/claude-code.md). Running the command again updates the installation without duplicates. Moving the repository requires a reinstall. With existing collisions, first merge your own instructions or give the local MCP server a different name. The installer does not replace a different instructions file or a foreign symlink.
 
 Installing only the configuration, without systemd:
 
