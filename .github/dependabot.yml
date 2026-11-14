@@ -1,0 +1,46 @@
+# Opens update pull requests; nothing reaches user machines before a reviewed merge to main.
+version: 2
+updates:
+  # Each upstream source gets its own pull request, so its skills are reviewed separately.
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+      include: scope
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        patterns: ['*']
+    commit-message:
+      prefix: chore
+      include: scope
+  - package-ecosystem: pip
+    directory: /tests
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      pip:
+        patterns: ['*']
+    commit-message:
+      prefix: chore
+      include: scope

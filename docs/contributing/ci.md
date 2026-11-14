@@ -36,6 +36,12 @@ Use a branch such as `fix/preserve-comments` and a matching title such as `fix: 
 
 `pr-policy.yml` runs `scripts/quality/pr_policy.py` in the `pr-policy` job when a pull request opens, gets new commits or has its title or description edited. The script checks the title with commitlint and `commitlint.config.mjs`, the same rules that `check.sh commits` applies to commit messages. The job then runs `check.sh commits` on the new commits of the pull request. The script also requires a `type/kebab-case` branch whose type matches the title, `main` as the base, and the filled template sections.
 
+Dependabot pull requests skip the `pr-policy` job. Dependabot picks its own branch names and writes commit bodies with lines longer than commitlint allows. GitHub counts a skipped required job as passed, and `quality` still runs.
+
 `.github/rulesets/main.json` is the proposed ruleset. It keeps signature, deletion and force-push protections, requires `quality` and `pr-policy`, an up-to-date branch and resolved review threads, and allows merge commits. Apply it in the repository settings; CI does not apply it. Each required check name must match its job name.
 
 No deployment runs before merge. The download-only timer distributes approved `main` revisions to user machines.
+
+## Dependency updates
+
+`.github/dependabot.yml` makes Dependabot open update pull requests once a month. It covers the `.upstream/` submodules, GitHub Actions, the npm packages in `package-lock.json` and the pip packages in `tests/requirements.txt`. Each submodule gets its own pull request. Actions, npm and pip updates are grouped into one pull request per ecosystem, and Dependabot waits 7 days after a release before proposing it. Review a submodule update as described in [upstream.md](../skills/upstream.md#updating). Synchronization ignores the pull requests until they are merged into `main`.
