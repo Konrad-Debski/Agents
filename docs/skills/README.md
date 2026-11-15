@@ -12,6 +12,9 @@ Use this map when the harness does not show the skill catalog. Open the procedur
 | WordPress/ACF section brief from Figma | [figma](../../skills/figma/SKILL.md) | Manual | A brief, no implementation |
 | Analyzing a WordPress copy or SQL dump after a hack | [wp-audit](../../skills/wp-audit/SKILL.md) | Agent-selected | A report of evidence and analysis scope |
 | Updating WordPress, plugins and ACF | [wp-update](../../skills/wp-update/SKILL.md) | Agent-selected | Versions, validation and publishing status |
+| Inspecting a WordPress repository before changes | [wp-project-triage](../../skills/wp-project-triage/SKILL.md) | Agent-selected | A JSON report of project kind, tooling and tests |
+| Configuring or fixing PHPStan in a WordPress project | [wp-phpstan](../../skills/wp-phpstan/SKILL.md) | Agent-selected | PHPStan configuration, stubs and fixes |
+| Investigating WordPress backend performance | [wp-performance](../../skills/wp-performance/SKILL.md) | Agent-selected | Measurements, causes and verified fixes |
 | Formatting pasted update notices | [wp-update-list](../../skills/wp-update-list/SKILL.md) | Agent-selected | A version list, no project update |
 | Refining a plan | [grill-me](../../skills/grill-me/SKILL.md) | Manual | An interview following [grilling](../../skills/grilling/SKILL.md) |
 | Writing instructions for agents | [writing-for-agents](../../skills/writing-for-agents/SKILL.md) | Agent-selected | Instructions and read conditions |
@@ -31,6 +34,8 @@ Use this map when the harness does not show the skill catalog. Open the procedur
 `pr` reads the publishing protocol when preparing a description. `pr` owns the description content, and the protocol owns publishing and merging. Writing a description alone does not authorize those operations.
 
 `grill-me` requires `grilling`. In a harness without a `Skill` tool, read both files. Installing the skill alone does not start the interview.
+
+`wp-phpstan` uses the `wp-project-triage` report. The WordPress skills give script paths relative to the upstream repository; [upstream.md](upstream.md) describes how to resolve them.
 
 `retro` uses `writing-for-agents`, and `tdd` uses `codebase-design` when an interface needs designing for tests. Whole-directory symlinks keep the TDD and module design references. `tdd` refers to `code-review` when discussing the review stage. That skill stays upstream, and the separately available `ponytail-review` has its own procedure.
 

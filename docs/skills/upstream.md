@@ -9,10 +9,13 @@ Load when adding or updating external skills. The sources are submodules, and `s
 | [cursor/plugins](https://github.com/cursor/plugins) | `unslop` | Editing text |
 | [DietrichGebert/ponytail](https://github.com/dietrichgebert/ponytail) | `ponytail`, `ponytail-audit`, `ponytail-review` | Small implementation scope, reviewing changes and auditing a whole repository |
 | [mattpocock/skills](https://github.com/mattpocock/skills) | `grill-me`, `grilling`, `writing-for-agents`, `diagnosing-bugs`, `pr`, `retro`, `handoff`, `tdd`, `codebase-design` | Section requirements, agent instructions, bug diagnosis, PR descriptions, retrospectives, work handoff, TDD and module design |
+| [WordPress/agent-skills](https://github.com/WordPress/agent-skills) | `wp-performance`, `wp-phpstan`, `wp-project-triage` | Backend WordPress performance, PHPStan in themes and plugins, and repository triage |
 
 `grilling` is a dependency of the current `grill-me`. Keeping only the alias would make its procedure impossible to run. `diagnosing-bugs` has its own script template, and `writing-for-agents` has a `SKILL-MECHANICS.md` file. The whole-directory symlink exposes these resources too.
 
 The skills are general and apply to PHP, Twig, ACF, CSS and TypeScript in themes. They bring no ready conventions for a specific theme, so the agent still follows the project instructions.
+
+The WordPress skills come from the official WordPress repository under GPL-2.0-or-later. `wp-phpstan` asks for the `wp-project-triage` report first, so both are exposed. Their scripts use only Node.js built-ins and need `node` in the `PATH`; `wp-performance` also prefers WP-CLI, which in a Docker project runs inside the container. The skills write script paths as `skills/<name>/scripts/...`, relative to the upstream repository root. Resolve them against the installed skill directory and run them from the project root, because the detectors inspect the current directory. `wp-project-triage` says to update its detector when a signal is missing; that file is in the submodule, so report the gap instead of editing it. We do not expose block, block theme, Interactivity API, Abilities API, Playground or plugin directory skills: the themes here are classic ACF and Twig themes. `wp-wpcli-and-ops` overlaps `wp-update`, and `wordpress-router` routes mostly to skills that are not exposed. `wp-performance` covers the WordPress backend; `diagnosing-bugs` stays the loop for a regression with an unknown cause.
 
 The other skills are available in the sources but have no global symlinks. `ponytail` has a broad invocation description and, once started, stays active for the session. We keep the author's behavior. We do not add it to the main `AGENTS.md`.
 
