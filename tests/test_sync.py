@@ -264,8 +264,9 @@ class SyncTests(unittest.TestCase):
         stub = self.stubs / 'codex'
         stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$*" >> "{log}"\n')
         stub.chmod(0o755)
+        claude_log = self.base / 'claude.log'
         # Keep a locally installed Claude Code out of the test.
-        (self.stubs / 'claude').write_text('#!/bin/bash\n')
+        (self.stubs / 'claude').write_text(f'#!/bin/bash\nprintf "%s\\n" "$*" >> "{claude_log}"\n')
         (self.stubs / 'claude').chmod(0o755)
         (self.vendor / '.claude-plugin').mkdir()
         (self.vendor / '.claude-plugin/plugin.json').write_text('{}\n')
@@ -277,6 +278,8 @@ class SyncTests(unittest.TestCase):
         expected = f'plugin marketplace add {self.repo}/adapters/codex\nplugin add ponytail@agents\n'
         self.sync()
         self.assertEqual(log.read_text(), expected)
+        self.assertIn('plugin install php-lsp@claude-plugins-official\n', claude_log.read_text())
+        self.assertIn('plugin install typescript-lsp@claude-plugins-official\n', claude_log.read_text())
         self.sync()
         self.assertEqual(log.read_text(), expected)
         self.advance(self.seed, 'AGENTS.md')
