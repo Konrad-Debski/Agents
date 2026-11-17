@@ -86,7 +86,7 @@ Complete when all plugin updates are accounted for, required checks pass and tas
 
 ## 6. Create the PR and merge
 
-Read [the publication protocol](../create-pr/references/workflow.md) now. Apply it to this project's repository, branch, verified base and validated HEAD. Keep the branch date as `YYYY-MM-DD` in the title, `chore: Update YYYY-MM-DD`; this overrides the protocol's hyphen-to-space conversion. Include version changes and verification results in the PR. If no phase changed tracked files, report already current without an empty PR.
+Read [the publication protocol](../create-pr/references/workflow.md) now. Apply it to this project's repository, branch, verified base and validated HEAD. Include version changes and verification results in the PR. If no phase changed tracked files, report already current without an empty PR.
 
 A failed or unavailable required local check blocks publication. Record the protocol's merged, pending or blocked result for the final report.
 
