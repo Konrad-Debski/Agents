@@ -22,7 +22,7 @@ Complete when the repository, head, base, validated SHA and existing PR state ar
 
 The branch must start with a recognized type followed by `/`: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `build`, `ci`, `perf`, or `revert`. Otherwise stop and ask the user to rename it.
 
-After removing the type prefix, extract an optional leading ticket ID matching `[A-Z][A-Z0-9]*-[0-9]+`, such as `ALTER-65` or `DEEP-13`. The remaining text is the description. Replace hyphens with spaces and capitalize the description words.
+After removing the type prefix, extract an optional leading ticket ID matching `[A-Z][A-Z0-9]*-[0-9]+`, such as `ALTER-65` or `DEEP-13`. The remaining text is the description. Replace hyphens with spaces and capitalize the description words. Keep a `YYYY-MM-DD` date intact, so `chore/update-2026-11-17` becomes `chore: Update 2026-11-17`.
 
 Generate the title:
 
