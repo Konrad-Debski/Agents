@@ -38,7 +38,7 @@ docker compose exec dev bash -l
 1. Before stopping containers, tell the user that this command will stop all Docker containers, including unrelated projects. The requested workflow authorizes this action. Verify that `docker-stop-all` exists in the user's host shell; it may be a function or alias. If unavailable, report the blocker rather than substituting a different global shutdown command.
 2. Confirm Compose starts successfully and the `dev` service is ready. Verify that its mounted WordPress files belong to this project and its database is either local to this Compose environment or hosted at `10.1.1.99`. The user has confirmed that `10.1.1.99` is their trusted local development database server; accept this host without asking again or requiring its IP to match the Compose database container. Verify that the selected database belongs to this project, and retain the backup requirement below. Stop on any other unexpected external or production database.
 3. Inside the dev container, identify the WordPress root and the project's actual theme directory. Change into that directory, for example `cd wp-content/themes/starter-empressia`. Do not assume all projects use that theme name or container working directory.
-4. Verify Composer, WP-CLI and database access. Record initial WordPress, plugin and ACF versions. Before database migrations, ensure a recoverable local database backup exists, or create one outside tracked files with restricted access. Keep dumps and credentials out of Git.
+4. Verify Composer, WP-CLI and database access. Record initial WordPress, plugin and ACF versions. Before database migrations, ensure a recoverable local database backup exists, or create one inside the project's repository folder as `.backups/<db>-<YYYY-MM-DD>-pre-update.sql`, never in the home directory. Export it from the mounted WordPress root so it lands there directly. Add `.backups/` to `.git/info/exclude` unless Git already ignores it, and set the dump to `600`. Keep dumps and credentials out of Git.
 
 For noninteractive tool execution, use equivalent `docker compose exec -T dev bash -lc '<commands>'` calls. Preserve the login-shell environment and explicitly select the verified directory on each call. Run update commands inside the container; run Git commands from the host repository.
 
@@ -86,7 +86,7 @@ Complete when all plugin updates are accounted for, required checks pass and tas
 
 ## 6. Create the PR and merge
 
-Read [the publication protocol](../create-pr/references/workflow.md) now. Apply it to this project's repository, branch, verified base and validated HEAD. Include version changes and verification results in the PR. If no phase changed tracked files, report already current without an empty PR.
+Read [the publication protocol](../create-pr/references/workflow.md) now. Apply it to this project's repository, branch, verified base and validated HEAD. Keep the branch date as `YYYY-MM-DD` in the title, `chore: Update YYYY-MM-DD`; this overrides the protocol's hyphen-to-space conversion. Include version changes and verification results in the PR. If no phase changed tracked files, report already current without an empty PR.
 
 A failed or unavailable required local check blocks publication. Record the protocol's merged, pending or blocked result for the final report.
 
