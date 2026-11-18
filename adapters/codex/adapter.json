@@ -4,5 +4,13 @@
   "instructions": ".codex/AGENTS.md",
   "skills": "native",
   "mcp": ".codex/config.toml",
-  "format": "toml"
+  "format": "toml",
+  "plugin_skills": [
+    "ponytail",
+    "ponytail-audit",
+    "ponytail-debt",
+    "ponytail-gain",
+    "ponytail-help",
+    "ponytail-review"
+  ]
 }

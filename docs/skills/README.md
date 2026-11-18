@@ -23,15 +23,28 @@ Use this map when the harness does not show the skill catalog. Open the procedur
 | Handing work off to the next session | [handoff](../../skills/handoff/SKILL.md) | Manual | A handoff document in a temporary directory |
 | Implementing or fixing with TDD | [tdd](../../skills/tdd/SKILL.md) | Agent-selected | Behavior verified by a test written before the implementation |
 | Designing interfaces and improving testability | [codebase-design](../../skills/codebase-design/SKILL.md) | Agent-selected | Module design rules |
+| Monitoring a PR through CI and review bots | [babysit-pr](../../skills/babysit-pr/SKILL.md) | Agent-selected | Fixed findings and a ready or merged PR |
+| Posting a GitHub comment on the user's behalf | [leaving-pr-comments](../../skills/leaving-pr-comments/SKILL.md) | Agent-selected | An attributed comment |
+| Rebasing or reassessing an old PR | [modernize](../../skills/modernize/SKILL.md) | Agent-selected | `MODERNIZE`, `REWORK` or `CLOSE` with evidence |
+| Taking over a PR, branch or agent thread | [takeover](../../skills/takeover/SKILL.md) | Agent-selected | Finished work with preserved credit |
+| Review by Claude and GPT ("council") | [council](../../skills/council/SKILL.md) | Agent-selected | Summarized findings and scores per round |
+| Review loop with GPT Sol ("sol loop") | [sol-loop](../../skills/sol-loop/SKILL.md) | Agent-selected | A finding ledger and Sol's verdict |
+| Unattended change to a merged PR ("full send") | [full-send](../../skills/full-send/SKILL.md) | Agent-selected | A merged PR with proof |
+| Unattended change to a ready PR ("full stop") | [full-stop](../../skills/full-stop/SKILL.md) | Agent-selected | A PR ready for the user to merge |
 | Implementing with existing patterns | [ponytail](../../skills/ponytail/SKILL.md) | Agent-selected | A small, complete change |
 | Reviewing correctness and unneeded code | [ponytail-review](../../skills/ponytail-review/SKILL.md) | Agent-selected | A review report, no code changes |
 | Auditing a whole repository | [ponytail-audit](../../skills/ponytail-audit/SKILL.md) | Agent-selected | A report of bugs, risks and unneeded code, no code changes |
+| Listing deferred shortcuts | [ponytail-debt](../../skills/ponytail-debt/SKILL.md) | Agent-selected | A debt ledger from shortcut comments, no code changes |
+| Showing Ponytail benchmark results | [ponytail-gain](../../skills/ponytail-gain/SKILL.md) | Agent-selected | Published benchmark figures, no project savings estimate |
+| Looking up Ponytail commands and levels | [ponytail-help](../../skills/ponytail-help/SKILL.md) | Agent-selected | A command reference, no mode changes |
 
 ## Shared references
 
 `wp-update` and `famicord-sync` read the [publishing protocol](../../skills/create-pr/references/workflow.md) only right before that phase. This is a document read, without invoking the manual `create-pr`. For links to the style rules in the global map, also read the linked file as a reference.
 
 `pr` reads the publishing protocol when preparing a description. `pr` owns the description content, and the protocol owns publishing and merging. Writing a description alone does not authorize those operations.
+
+`full-send` uses `sol-loop` and `babysit-pr`, and `full-stop` reads `full-send`. `takeover` uses `modernize` and `babysit-pr`. `babysit-pr`, `modernize` and `takeover` use `leaving-pr-comments`. `full-send` and `takeover` read the publishing protocol for filing a PR; `full-send` treats its own trigger as the publication confirmation.
 
 `grill-me` requires `grilling`. In a harness without a `Skill` tool, read both files. Installing the skill alone does not start the interview.
 

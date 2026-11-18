@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
+PONYTAIL_SKILLS = ('ponytail', 'ponytail-audit', 'ponytail-debt', 'ponytail-gain', 'ponytail-help', 'ponytail-review')
 
 
 class ApplyTests(unittest.TestCase):
@@ -124,6 +125,75 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual((installed / 'SKILL.md').read_text(), 'Updated upstream version\n')
         self.run_apply()
         self.assertEqual(installed.lstat().st_mtime_ns, before)
+
+    def test_claude_skips_and_removes_links_to_plugin_skills(self):
+        self.local(['claude-code'])
+        links = {}
+        for name in PONYTAIL_SKILLS:
+            source = self.repo / 'skills' / name
+            source.mkdir()
+            (source / 'SKILL.md').write_text('Plugin skill\n')
+            installed = self.home / '.claude/skills' / name
+            installed.parent.mkdir(parents=True, exist_ok=True)
+            installed.symlink_to(source)
+            links[str(installed)] = str(source)
+        state = self.state / 'agents/managed.json'
+        state.parent.mkdir(parents=True)
+        state.write_text(json.dumps({'version': 1, 'mcp': {}, 'links': links}))
+
+        self.run_apply()
+        for installed in map(Path, links):
+            self.assertFalse(installed.is_symlink() or installed.exists())
+        self.assertTrue((self.home / '.claude/skills/example').is_symlink())
+
+    def test_codex_disables_shared_plugin_skills_and_keeps_other_settings(self):
+        codex = self.write('.codex/config.toml', '# Personal settings\n[plugins."ponytail@agents"]\nenabled = true\n'
+                           '[skills]\nmax_context_tokens = 2048\n[[skills.config]]\npath = "/personal/SKILL.md"\nenabled = false\n')
+        for name in PONYTAIL_SKILLS:
+            upstream = self.repo / '.upstream/ponytail/skills' / name
+            upstream.mkdir(parents=True)
+            (upstream / 'SKILL.md').write_text('Plugin skill\n')
+            (self.repo / 'skills' / name).symlink_to('../.upstream/ponytail/skills/' + name, target_is_directory=True)
+
+        self.run_apply()
+        data = tomllib.loads(codex.read_text())
+        disabled = [{'path': str(self.repo / 'skills' / name / 'SKILL.md'), 'enabled': False} for name in PONYTAIL_SKILLS]
+        self.assertEqual(data['skills']['config'], [{'path': '/personal/SKILL.md', 'enabled': False}, *disabled])
+        self.assertEqual(data['skills']['max_context_tokens'], 2048)
+        self.assertTrue(data['plugins']['ponytail@agents']['enabled'])
+        self.assertIn('# Personal settings', codex.read_text())
+        for name in PONYTAIL_SKILLS:
+            self.assertTrue((self.repo / 'skills' / name / 'SKILL.md').is_file())
+            self.assertTrue((self.home / '.agents/skills' / name / 'SKILL.md').is_file())
+            self.assertFalse((self.home / '.claude/skills' / name).is_symlink())
+        before = codex.stat().st_mtime_ns
+        self.run_apply()
+        self.assertEqual(codex.stat().st_mtime_ns, before)
+        self.assertNotIn('Plan:', self.run_apply('--dry-run').stdout)
+
+        self.local([])
+        self.run_apply()
+        data = tomllib.loads(codex.read_text())
+        self.assertEqual(data['skills']['config'], [{'path': '/personal/SKILL.md', 'enabled': False}])
+        self.assertTrue(data['plugins']['ponytail@agents']['enabled'])
+
+    def test_codex_skill_paths_follow_checkout_with_custom_home_and_no_servers(self):
+        self.local(['codex'])
+        self.env['HOME'] = str(self.base / 'other-home')
+        self.env['CODEX_HOME'] = str(self.base / 'custom-codex')
+        path, registry = self.servers()
+        registry['servers'] = {}
+        path.write_text(json.dumps(registry))
+        self.run_apply()
+        codex = Path(self.env['CODEX_HOME']) / 'config.toml'
+        disabled = tomllib.loads(codex.read_text())['skills']['config']
+        self.assertEqual(disabled, [{'path': str(self.repo / 'skills' / name / 'SKILL.md'), 'enabled': False}
+                                    for name in PONYTAIL_SKILLS])
+        self.assertNotIn('Plan:', self.run_apply('--dry-run').stdout)
+        codex.write_text(codex.read_text().replace('enabled = false', 'enabled = true', 1))
+        before = codex.read_bytes()
+        self.assertIn('managed skills were changed by hand', self.run_apply(success=False).stderr)
+        self.assertEqual(codex.read_bytes(), before)
 
     def test_new_claude_skill_preserves_a_personal_skill_with_the_same_name(self):
         self.local(['claude-code'])
