@@ -14,3 +14,6 @@
 [submodule ".upstream/tstack"]
 	path = .upstream/tstack
 	url = https://github.com/t3dotgg/tstack.git
+[submodule ".upstream/modern-web-guidance"]
+	path = .upstream/modern-web-guidance
+	url = https://github.com/GoogleChrome/modern-web-guidance.git

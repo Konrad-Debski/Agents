@@ -6,6 +6,8 @@
   "mcp": ".claude.json",
   "format": "json",
   "plugin_skills": [
+    "chrome-extensions",
+    "modern-web-guidance",
     "ponytail",
     "ponytail-audit",
     "ponytail-debt",

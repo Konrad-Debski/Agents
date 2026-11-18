@@ -5,6 +5,7 @@ Load only the sources that match the current task.
 ## Technical documentation
 
 - Libraries, frameworks, SDKs, APIs, CLIs and cloud services: read [Context7](~/.agents/skills/context7-mcp/SKILL.md).
+- Before implementing or updating HTML, CSS or browser JavaScript, consult [Modern Web Guidance](~/.agents/skills/modern-web-guidance/SKILL.md).
 
 ## Writing and procedures
 

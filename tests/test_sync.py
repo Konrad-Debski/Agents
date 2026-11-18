@@ -259,7 +259,7 @@ class SyncTests(unittest.TestCase):
         self.assertFalse(installed.is_symlink())
         self.assertEqual(personal.read_text(), 'Personal skill\n')
 
-    def test_sync_reinstalls_the_codex_plugin_once_per_downloaded_commit(self):
+    def test_sync_reinstalls_plugins_once_per_downloaded_commit(self):
         log = self.base / 'codex.log'
         stub = self.stubs / 'codex'
         stub.write_text(f'#!/bin/bash\nprintf "%s\\n" "$*" >> "{log}"\n')
@@ -270,16 +270,23 @@ class SyncTests(unittest.TestCase):
         (self.stubs / 'claude').chmod(0o755)
         (self.vendor / '.claude-plugin').mkdir()
         (self.vendor / '.claude-plugin/plugin.json').write_text('{}\n')
+        (self.vendor / '.claude-plugin/marketplace.json').write_text('{}\n')
+        (self.vendor / '.agents/plugins').mkdir(parents=True)
+        (self.vendor / '.agents/plugins/marketplace.json').write_text('{}\n')
         self.commit(self.vendor, 'plugin manifest')
         self.git(self.vendor, 'push', 'origin', 'main')
         self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/ponytail')
-        self.commit(self.seed, 'add ponytail')
+        self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/modern-web-guidance')
+        self.commit(self.seed, 'add upstream plugins')
         self.git(self.seed, 'push', 'origin', 'main')
         expected = f'plugin marketplace add {self.repo}/adapters/codex\nplugin add ponytail@agents\n'
+        marketplace = f'plugin marketplace add {self.repo}/.upstream/modern-web-guidance\n'
+        expected += marketplace + 'plugin add modern-web-guidance@googlechrome\n'
         self.sync()
         self.assertEqual(log.read_text(), expected)
         self.assertIn('plugin install php-lsp@claude-plugins-official\n', claude_log.read_text())
         self.assertIn('plugin install typescript-lsp@claude-plugins-official\n', claude_log.read_text())
+        self.assertIn(marketplace + 'plugin install modern-web-guidance@googlechrome\n', claude_log.read_text())
         self.sync()
         self.assertEqual(log.read_text(), expected)
         self.advance(self.seed, 'AGENTS.md')
