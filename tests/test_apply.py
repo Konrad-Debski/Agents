@@ -12,6 +12,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 PONYTAIL_SKILLS = ('ponytail', 'ponytail-audit', 'ponytail-debt', 'ponytail-gain', 'ponytail-help', 'ponytail-review')
+PLUGIN_SKILLS = dict.fromkeys(('chrome-extensions', 'modern-web-guidance'), 'modern-web-guidance')
+PLUGIN_SKILLS.update(dict.fromkeys(PONYTAIL_SKILLS, 'ponytail'))
 
 
 class ApplyTests(unittest.TestCase):
@@ -129,7 +131,7 @@ class ApplyTests(unittest.TestCase):
     def test_claude_skips_and_removes_links_to_plugin_skills(self):
         self.local(['claude-code'])
         links = {}
-        for name in PONYTAIL_SKILLS:
+        for name in PLUGIN_SKILLS:
             source = self.repo / 'skills' / name
             source.mkdir()
             (source / 'SKILL.md').write_text('Plugin skill\n')
@@ -149,20 +151,20 @@ class ApplyTests(unittest.TestCase):
     def test_codex_disables_shared_plugin_skills_and_keeps_other_settings(self):
         codex = self.write('.codex/config.toml', '# Personal settings\n[plugins."ponytail@agents"]\nenabled = true\n'
                            '[skills]\nmax_context_tokens = 2048\n[[skills.config]]\npath = "/personal/SKILL.md"\nenabled = false\n')
-        for name in PONYTAIL_SKILLS:
-            upstream = self.repo / '.upstream/ponytail/skills' / name
+        for name, plugin in PLUGIN_SKILLS.items():
+            upstream = self.repo / '.upstream' / plugin / 'skills' / name
             upstream.mkdir(parents=True)
             (upstream / 'SKILL.md').write_text('Plugin skill\n')
-            (self.repo / 'skills' / name).symlink_to('../.upstream/ponytail/skills/' + name, target_is_directory=True)
+            (self.repo / 'skills' / name).symlink_to(f'../.upstream/{plugin}/skills/{name}', target_is_directory=True)
 
         self.run_apply()
         data = tomllib.loads(codex.read_text())
-        disabled = [{'path': str(self.repo / 'skills' / name / 'SKILL.md'), 'enabled': False} for name in PONYTAIL_SKILLS]
+        disabled = [{'path': str(self.repo / 'skills' / name / 'SKILL.md'), 'enabled': False} for name in PLUGIN_SKILLS]
         self.assertEqual(data['skills']['config'], [{'path': '/personal/SKILL.md', 'enabled': False}, *disabled])
         self.assertEqual(data['skills']['max_context_tokens'], 2048)
         self.assertTrue(data['plugins']['ponytail@agents']['enabled'])
         self.assertIn('# Personal settings', codex.read_text())
-        for name in PONYTAIL_SKILLS:
+        for name in PLUGIN_SKILLS:
             self.assertTrue((self.repo / 'skills' / name / 'SKILL.md').is_file())
             self.assertTrue((self.home / '.agents/skills' / name / 'SKILL.md').is_file())
             self.assertFalse((self.home / '.claude/skills' / name).is_symlink())
@@ -188,7 +190,7 @@ class ApplyTests(unittest.TestCase):
         codex = Path(self.env['CODEX_HOME']) / 'config.toml'
         disabled = tomllib.loads(codex.read_text())['skills']['config']
         self.assertEqual(disabled, [{'path': str(self.repo / 'skills' / name / 'SKILL.md'), 'enabled': False}
-                                    for name in PONYTAIL_SKILLS])
+                                    for name in PLUGIN_SKILLS])
         self.assertNotIn('Plan:', self.run_apply('--dry-run').stdout)
         codex.write_text(codex.read_text().replace('enabled = false', 'enabled = true', 1))
         before = codex.read_bytes()

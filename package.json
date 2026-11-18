@@ -15,6 +15,7 @@
   },
   "skills": [
     "./skills/babysit-pr",
+    "./skills/chrome-extensions",
     "./skills/codebase-design",
     "./skills/context7-mcp",
     "./skills/council",
@@ -28,6 +29,7 @@
     "./skills/grilling",
     "./skills/handoff",
     "./skills/leaving-pr-comments",
+    "./skills/modern-web-guidance",
     "./skills/modernize",
     "./skills/ponytail",
     "./skills/ponytail-audit",

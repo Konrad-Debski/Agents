@@ -6,6 +6,8 @@
   "mcp": ".codex/config.toml",
   "format": "toml",
   "plugin_skills": [
+    "chrome-extensions",
+    "modern-web-guidance",
     "ponytail",
     "ponytail-audit",
     "ponytail-debt",
