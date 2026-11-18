@@ -1,0 +1,27 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  auto-merge:
+    # tstack updates can require changes to the local skill copies.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'dependabot/submodules/dot-upstream/') &&
+      !startsWith(github.event.pull_request.head.ref, 'dependabot/submodules/dot-upstream/tstack-')
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      # Do not check out or run pull request code with this token.
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --merge --match-head-commit "$PR_HEAD_SHA"

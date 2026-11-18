@@ -32,7 +32,7 @@ From Matt's repository we do not expose tracker procedures, environment generato
 
 The gitlink in the parent repository sets the exact approved version of each source. Installation and synchronization check out that version. To select a newer version, update the gitlink on a working branch and publish a pull request. The update branch comes from `.gitmodules`; without a `branch` entry Git uses the remote repository's default branch.
 
-Dependabot opens a monthly pull request for each source whose tracked branch has moved. [ci.md](../contributing/ci.md#dependency-updates) describes the configuration. Review it like a manual update: check the diff, the metadata and the paths of the selected skills, and fix the symlinks and `package.json` on the same branch when upstream moved them. The `quality` job fails when a registered skill no longer has a `SKILL.md`.
+Dependabot opens a monthly pull request for each source whose tracked branch has moved. GitHub merges these updates once the required checks pass. Review tstack updates by hand because they can require changes to the local skill copies. The `quality` job fails when a registered skill no longer has a `SKILL.md`. If upstream moved a skill, fix the symlink and `package.json` on the same branch. [CI configuration](../contributing/ci.md#dependency-updates)
 
 When the task is to update one source:
 
