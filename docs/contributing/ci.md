@@ -46,4 +46,14 @@ No deployment runs before merge. The download-only timer distributes approved `m
 
 `.github/dependabot.yml` makes Dependabot open update pull requests once a month. It covers the `.upstream/` submodules, GitHub Actions, the npm packages in `package-lock.json` and the pip packages in `tests/requirements.txt`. Each submodule gets its own pull request. Actions, npm and pip updates are grouped into one pull request per ecosystem, and Dependabot waits 7 days after a release before proposing it.
 
-`dependabot-auto-merge.yml` enables GitHub auto-merge for Dependabot submodule updates into `main`. The repository needs **Allow auto-merge** enabled and `quality` required on `main`. GitHub waits for `quality` and the other merge requirements before merging. Review tstack updates by hand because this repository keeps local copies of some of its skills. GitHub Actions, npm and pip updates also use manual merges.
+`dependabot-auto-merge.yml` enables GitHub auto-merge for Dependabot submodule updates into `main`. The repository needs **Allow auto-merge** enabled and `quality` required on `main`. GitHub waits for `quality` and the other merge requirements before merging. GitHub Actions, npm and pip updates use manual merges.
+
+### tstack updates
+
+`tstack-review.yml` reviews Dependabot PRs that change just the tstack gitlink. It merges the old upstream version, the local copy and the new upstream version for each changed local skill file. Claude Code checks the result and suggests resolutions for conflicts in the review run summary, linked from the PR's Checks tab.
+
+After a successful review, `tstack-publish.yml` rebuilds the candidate from Git and attaches any reconciled files as a signed commit on the same PR. GitHub can auto-merge when the update leaves the installed skills, license and upstream Git configuration intact. For other changes, a maintainer reviews the result and merges the PR after CI passes. For a conflict, use the suggestion in the review summary to prepare the commit. Dependabot stops rebasing the PR automatically after another author adds a commit.
+
+Run `claude setup-token` with a Claude subscription and save the token as the `CLAUDE_CODE_OAUTH_TOKEN` Dependabot secret. Claude Code reviews draw from that subscription's usage limits. [Claude Code authentication](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token)
+
+Install a GitHub App on this repository with **Contents** and **Pull requests** read and write permissions. Set the Actions variable `TSTACK_APP_CLIENT_ID` and the Actions secret `TSTACK_APP_PRIVATE_KEY` from that app. The review workflow has read-only repository permissions. Only the publication workflow uses the app credentials.

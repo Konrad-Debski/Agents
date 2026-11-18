@@ -1,0 +1,61 @@
+name: tstack publish
+
+on:
+  workflow_run:
+    workflows: [tstack review]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: tstack-publish-${{ github.event.workflow_run.head_branch }}
+
+jobs:
+  publish:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.path == '.github/workflows/tstack-review.yml' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/submodules/dot-upstream/tstack-')
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the open pull request for the reviewed head
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          number=$(gh api --method GET "repos/$GITHUB_REPOSITORY/pulls" \
+            -f state=open -f base=main -f head="${GITHUB_REPOSITORY_OWNER}:$HEAD_BRANCH" |
+            jq -r --arg sha "$HEAD_SHA" \
+              '[.[] | select(.head.sha == $sha and .user.login == "dependabot[bot]") | .number] |
+               if length == 1 then .[0] else empty end')
+          if [ -n "$number" ]; then
+            echo "number=$number" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create publication token
+        if: steps.pr.outputs.number != ''
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TSTACK_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TSTACK_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Recompute and publish the candidate
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          PR_HEAD: ${{ github.event.workflow_run.head_sha }}
+        run: python3 scripts/quality/tstack_update.py publish "$PR_NUMBER" "$PR_HEAD"
