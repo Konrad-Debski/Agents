@@ -5,10 +5,6 @@ on:
     workflows: [tstack review]
     types: [completed]
 
-permissions:
-  contents: read
-  pull-requests: read
-
 concurrency:
   group: tstack-publish-${{ github.event.workflow_run.head_branch }}
 
@@ -21,6 +17,9 @@ jobs:
       github.event.workflow_run.actor.login == 'dependabot[bot]' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       startsWith(github.event.workflow_run.head_branch, 'dependabot/submodules/dot-upstream/tstack-')
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -43,19 +42,10 @@ jobs:
           if [ -n "$number" ]; then
             echo "number=$number" >> "$GITHUB_OUTPUT"
           fi
-      - name: Create publication token
-        if: steps.pr.outputs.number != ''
-        id: app
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
-        with:
-          client-id: ${{ vars.TSTACK_APP_CLIENT_ID }}
-          private-key: ${{ secrets.TSTACK_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
       - name: Recompute and publish the candidate
         if: steps.pr.outputs.number != ''
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           PR_HEAD: ${{ github.event.workflow_run.head_sha }}
         run: python3 scripts/quality/tstack_update.py publish "$PR_NUMBER" "$PR_HEAD"
