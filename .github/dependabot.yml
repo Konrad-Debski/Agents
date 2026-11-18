@@ -1,7 +1,7 @@
-# Opens update pull requests; nothing reaches user machines before a reviewed merge to main.
+# Opens update pull requests. Synchronization installs updates after they merge into main.
 version: 2
 updates:
-  # Each upstream source gets its own pull request, so its skills are reviewed separately.
+  # Each upstream source gets its own pull request and CI run.
   - package-ecosystem: gitsubmodule
     directory: /
     schedule:

@@ -11,3 +11,6 @@
 [submodule ".upstream/wordpress-agent-skills"]
 	path = .upstream/wordpress-agent-skills
 	url = https://github.com/WordPress/agent-skills.git
+[submodule ".upstream/tstack"]
+	path = .upstream/tstack
+	url = https://github.com/t3dotgg/tstack.git

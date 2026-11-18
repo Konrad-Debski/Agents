@@ -44,4 +44,6 @@ No deployment runs before merge. The download-only timer distributes approved `m
 
 ## Dependency updates
 
-`.github/dependabot.yml` makes Dependabot open update pull requests once a month. It covers the `.upstream/` submodules, GitHub Actions, the npm packages in `package-lock.json` and the pip packages in `tests/requirements.txt`. Each submodule gets its own pull request. Actions, npm and pip updates are grouped into one pull request per ecosystem, and Dependabot waits 7 days after a release before proposing it. Review a submodule update as described in [upstream.md](../skills/upstream.md#updating). Synchronization ignores the pull requests until they are merged into `main`.
+`.github/dependabot.yml` makes Dependabot open update pull requests once a month. It covers the `.upstream/` submodules, GitHub Actions, the npm packages in `package-lock.json` and the pip packages in `tests/requirements.txt`. Each submodule gets its own pull request. Actions, npm and pip updates are grouped into one pull request per ecosystem, and Dependabot waits 7 days after a release before proposing it.
+
+`dependabot-auto-merge.yml` enables GitHub auto-merge for Dependabot submodule updates into `main`. The repository needs **Allow auto-merge** enabled and `quality` required on `main`. GitHub waits for `quality` and the other merge requirements before merging. Review tstack updates by hand because this repository keeps local copies of some of its skills. GitHub Actions, npm and pip updates also use manual merges.
