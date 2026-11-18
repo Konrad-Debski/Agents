@@ -34,6 +34,9 @@ Use this map when the harness does not show the skill catalog. Open the procedur
 | Implementing with existing patterns | [ponytail](../../skills/ponytail/SKILL.md) | Agent-selected | A small, complete change |
 | Reviewing correctness and unneeded code | [ponytail-review](../../skills/ponytail-review/SKILL.md) | Agent-selected | A review report, no code changes |
 | Auditing a whole repository | [ponytail-audit](../../skills/ponytail-audit/SKILL.md) | Agent-selected | A report of bugs, risks and unneeded code, no code changes |
+| Listing deferred shortcuts | [ponytail-debt](../../skills/ponytail-debt/SKILL.md) | Agent-selected | A debt ledger from shortcut comments, no code changes |
+| Showing Ponytail benchmark results | [ponytail-gain](../../skills/ponytail-gain/SKILL.md) | Agent-selected | Published benchmark figures, no project savings estimate |
+| Looking up Ponytail commands and levels | [ponytail-help](../../skills/ponytail-help/SKILL.md) | Agent-selected | A command reference, no mode changes |
 
 ## Shared references
 

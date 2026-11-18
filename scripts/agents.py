@@ -205,8 +205,8 @@ def convert_plain(server, harness):
     return result
 
 
-def toml_block(servers):
-    if not servers:
+def toml_block(servers, skills=()):
+    if not servers and not skills:
         return ''
     lines = [BEGIN.rstrip()]
     for name, server in servers.items():
@@ -217,6 +217,8 @@ def toml_block(servers):
             else:
                 text = json.dumps(value, ensure_ascii=False)
             lines.append(key + ' = ' + text)
+    for path in skills:
+        lines.extend(['[[skills.config]]', 'path = ' + json.dumps(path), 'enabled = false'])
     return '\n'.join(lines) + '\n' + END
 
 
@@ -375,7 +377,7 @@ def merge_opencode(text, old, desired):
     return merge_jsonc_servers(text, old, desired, opencode_servers, 'OpenCode')
 
 
-def merge_mcp(path, fmt, old, desired):
+def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
     require(not path.is_symlink(), f'{path}: the configuration is a symlink; merging requires a regular file')
     text = path.read_text() if path.exists() else ''
     if fmt == 'opencode':
@@ -392,19 +394,21 @@ def merge_mcp(path, fmt, old, desired):
             require(stop > start, f'{path}: markers in reverse order')
             managed = text[start:stop]
             # Codex adds new tables above a trailing comment, so they land before END. Move them out.
-            body = toml_block(old)[:-len(END)]
-            foreign = managed[len(body):-len(END)] if old and managed.startswith(body) else ''
+            body = toml_block(old, old_skills)[:-len(END)]
+            foreign = managed[len(body):-len(END)] if (old or old_skills) and managed.startswith(body) else ''
             managed = managed[:len(managed) - len(END) - len(foreign)] + END
             text = text[:start] + foreign + text[stop:]
         block = tomllib.loads(managed)
-        require(not (set(block) - {'mcp_servers'}), f'{path}: foreign settings inside the managed block; move them below its END line')
+        require(not (set(block) - {'mcp_servers', 'skills'}), f'{path}: foreign settings inside the managed block; move them below its END line')
         require(block.get('mcp_servers', {}) == old, f'{path}: managed block was changed by hand or state is missing')
+        expected_skills = {'config': [{'path': skill, 'enabled': False} for skill in old_skills]} if old_skills else {}
+        require(block.get('skills', {}) == expected_skills, f'{path}: managed skills were changed by hand or state is missing')
         remaining = tomllib.loads(text).get('mcp_servers', {})
         # A local [mcp_servers.NAME.oauth] table may hold the client secret of a managed server.
         local = {name: remaining[name] for name in set(remaining) & set(desired)}
         require(all(set(value) == {'oauth'} and 'oauth' not in desired[name] for name, value in local.items()),
                 f'{path}: MCP name collision')
-        result = text.rstrip() + ('\n\n' if text.strip() and desired else '') + toml_block(desired)
+        result = text.rstrip() + ('\n\n' if text.strip() and (desired or skills) else '') + toml_block(desired, skills)
         expected = {**remaining, **{name: value | local.get(name, {}) for name, value in desired.items()}}
         require(tomllib.loads(result).get('mcp_servers', {}) == expected, f'{path}: invalid TOML result')
         return result.encode()
@@ -556,7 +560,10 @@ def prepare():
                 owned = previous['mcp'].get(str(other), {}).get('servers', {})
                 remaining, _ = opencode_servers(merge_mcp(other, 'opencode', owned, {}).decode())
                 require(not (set(remaining) & set(desired)), f'{other}: MCP collision in the second OpenCode file')
-        content = merge_mcp(config_path, adapter['format'], old, desired)
+        # Disable only shared files; the plugin's separate copies stay enabled.
+        skills = [str(ROOT / 'skills' / skill / 'SKILL.md') for skill in adapter.get('plugin_skills', [])] if name == 'codex' else []
+        old_skills = previous['mcp'].get(key, {}).get('skills', [])
+        content = merge_mcp(config_path, adapter['format'], old, desired, old_skills, skills)
         for server in desired:
             oauth = servers[server].get('oauth', {})
             if 'client_secret_env' not in oauth:
@@ -571,17 +578,19 @@ def prepare():
                                f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
                                f'{server} {servers[server]["url"]}; then run apply.sh again')
         before = snapshot(config_path)
-        if before[0] != 'missing' or desired:
+        if before[0] != 'missing' or desired or skills:
             if before[1] != content:
                 changes[config_path] = (before, ('file', content, 0o600))
         following['mcp'][key] = {'format': adapter['format'], 'servers': desired}
+        if skills:
+            following['mcp'][key]['skills'] = skills
 
     # Remove only entries whose ownership and current contents still match.
     for key, entry in previous['mcp'].items():
         if key not in following['mcp']:
             path = Path(key)
             before = snapshot(path)
-            content = merge_mcp(path, entry['format'], entry['servers'], {})
+            content = merge_mcp(path, entry['format'], entry['servers'], {}, entry.get('skills', []))
             if before[1] != content:
                 changes[path] = (before, ('file', content, 0o600))
     for key, target in previous['links'].items():
