@@ -73,6 +73,10 @@ Complete when one open PR has the intended head, base, title and prepared body.
 3. Before merging, refresh the PR state and confirm the head SHA still matches the validated SHA, all checks have passed or are legitimately skipped, required reviews are satisfied and GitHub reports it mergeable without blocking protections. An unknown mergeability state requires another read, not a merge attempt.
 4. Merge using `gh pr merge <number> --repo <repo> --merge --subject <title> --match-head-commit <validated-sha>`. Use ordinary merge, without administrator bypass, squash, rebase or branch deletion.
 5. Verify with `gh pr view <number> --repo <repo> --json state,mergedAt,mergeCommit,url`. Completion requires `state=MERGED`, a merge timestamp and merge SHA. A queued merge or enabled auto-merge remains pending until verified merged.
+6. After a verified merge, return to the latest base branch (`origin/main` in this repository). Use the worktree that already has `<base>` checked out if there is one. Otherwise, use the PR worktree and switch to `<base>` after fetching.
+   - Confirm the target worktree is clean. Run `git fetch <remote> <base>`, then `git switch <base>` if needed. If the local base branch is missing, use `git switch --track <remote>/<base>`.
+   - Run `git merge --ff-only <remote>/<base>`. Verify the checked-out branch is `<base>` and `HEAD` equals `<remote>/<base>`. If the repository has submodules, run `git submodule update --init --recursive --checkout`.
+   - Preserve the feature branch and local work. If the local update is blocked, report why alongside the confirmed merge result.
 
 ## Result
 
