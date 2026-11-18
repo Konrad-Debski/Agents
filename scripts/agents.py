@@ -540,8 +540,10 @@ def prepare():
             if not canonical:
                 link(home / '.agents/skills', ROOT / 'skills')
         else:
+            # A plugin already provides these skills, so a link would duplicate them.
+            plugin_skills = adapter.get('plugin_skills', [])
             for skill in sorted((ROOT / 'skills').iterdir()):
-                if (skill / 'SKILL.md').is_file():
+                if (skill / 'SKILL.md').is_file() and skill.name not in plugin_skills:
                     link(base / 'skills' / skill.name, skill)
         desired = {key: convert(server, name) for key, server in servers.items()
                    if key not in disabled and key not in scoped_disabled.get(name, [])

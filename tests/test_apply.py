@@ -125,6 +125,22 @@ class ApplyTests(unittest.TestCase):
         self.run_apply()
         self.assertEqual(installed.lstat().st_mtime_ns, before)
 
+    def test_claude_skips_and_removes_links_to_plugin_skills(self):
+        self.local(['claude-code'])
+        source = self.repo / 'skills/ponytail'
+        source.mkdir()
+        (source / 'SKILL.md').write_text('Plugin skill\n')
+        installed = self.home / '.claude/skills/ponytail'
+        installed.parent.mkdir(parents=True)
+        installed.symlink_to(source)
+        state = self.state / 'agents/managed.json'
+        state.parent.mkdir(parents=True)
+        state.write_text(json.dumps({'version': 1, 'mcp': {}, 'links': {str(installed): str(source)}}))
+
+        self.run_apply()
+        self.assertFalse(installed.is_symlink() or installed.exists())
+        self.assertTrue((self.home / '.claude/skills/example').is_symlink())
+
     def test_new_claude_skill_preserves_a_personal_skill_with_the_same_name(self):
         self.local(['claude-code'])
         self.run_apply()

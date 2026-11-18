@@ -4,5 +4,10 @@
   "instructions": ".claude/CLAUDE.md",
   "skills": ".claude/skills",
   "mcp": ".claude.json",
-  "format": "json"
+  "format": "json",
+  "plugin_skills": [
+    "ponytail",
+    "ponytail-audit",
+    "ponytail-review"
+  ]
 }
