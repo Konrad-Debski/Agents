@@ -238,7 +238,7 @@ class ApplyTests(unittest.TestCase):
         path = self.home / '.codex/config.toml'
         text = path.read_text().replace('# BEGIN agents managed MCP\n', '').replace('\n[', '\n\n[')
         text = text.replace('https://mcp.figma.com/mcp', managed_url)
-        oauth = '[mcp_servers."google-sheets-official".oauth]\nclient_secret = "local-secret"\n\n'
+        oauth = '[mcp_servers."google-sheets-official".oauth]\nclient_id = "local-client"\n\n'
         text = text.replace('[mcp_servers."openaiDeveloperDocs"]', oauth + '[mcp_servers."openaiDeveloperDocs"]')
         text = text.replace('\n\n[[skills.config]]', '\n\n[mcp_servers.personal]\ncommand = "custom"\n\n[[skills.config]]', 1)
         text = text.replace('# END agents', '\n[plugins."ponytail@agents"]\nenabled = true\n# END agents')
@@ -258,10 +258,10 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue(data['plugins']['ponytail@agents']['enabled'])
         self.assertTrue(data['tui']['screen_reader_detection_done'])
         self.assertEqual(data['mcp_servers']['personal'], {'command': 'custom'})
-        self.assertEqual(data['mcp_servers']['google-sheets-official']['oauth'], {'client_secret': 'local-secret'})
+        self.assertEqual(data['mcp_servers']['google-sheets-official']['oauth'], {'client_id': 'local-client'})
         managed = text[text.index('# BEGIN'):]
         self.assertNotIn('personal', managed)
-        self.assertNotIn('local-secret', managed)
+        self.assertNotIn('local-client', managed)
         self.assertNotIn('plugins', managed)
         settled = path.read_bytes()
         self.run_apply()
