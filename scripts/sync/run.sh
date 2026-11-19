@@ -37,6 +37,24 @@ retire_legacy_sync "$repo_dir" "$state_dir"
 # shellcheck source=scripts/sync/gitsync.sh
 source "$repo_dir/scripts/sync/gitsync.sh"
 head=$(git rev-parse HEAD)
+# A pull without --recurse-submodules leaves checkouts behind their gitlinks. Catch up clean ones
+# so they are not mistaken for local edits. A checkout ahead of or beside its gitlink stays put.
+while IFS= read -r -d '' entry; do
+    [[ $entry == 160000\ * ]] || continue
+    path=${entry#*$'\t'}
+    recorded=${entry#160000 }
+    recorded=${recorded%% *}
+    if [[ ! -e $path/.git ]]; then
+        git submodule update --init -- "$path"
+        continue
+    fi
+    current=$(git -C "$path" rev-parse HEAD)
+    [[ $current != "$recorded" && -z $(git -C "$path" status --porcelain) ]] || continue
+    git -C "$path" cat-file -e "$recorded^{commit}" 2>/dev/null || git -C "$path" fetch -q origin || continue
+    if git -C "$path" merge-base --is-ancestor "$current" "$recorded" 2>/dev/null; then
+        git submodule update -- "$path"
+    fi
+done < <(git ls-files -s -z)
 # Leave gitlinks from a partially completed download to the checkout retry below.
 ignore_submodules=dirty
 if [[ -e "$pending" ]]; then

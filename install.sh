@@ -55,6 +55,9 @@ git -C "$repo_dir" submodule foreach --quiet --recursive '
     }
 '
 git -C "$repo_dir" submodule update --init --recursive --checkout
+# A manual pull or switch then also moves submodules, so stale checkouts are not committed back.
+git -C "$repo_dir" config --local submodule.recurse true
+git -C "$repo_dir" config --local push.recurseSubmodules check
 for option in sync syncNewFiles syncSkipHooks autocommitscript; do
     git -C "$repo_dir" config --local --unset-all "branch.main.$option" || [[ $? == 5 ]]
 done

@@ -360,6 +360,18 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(recorded, self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD'))
         self.assertEqual(before, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
 
+    def test_sync_catches_up_submodules_left_behind_by_a_plain_pull(self):
+        latest = self.advance(self.vendor, 'SKILL.md')
+        self.git(self.seed, 'submodule', 'update', '--remote', '--checkout')
+        self.commit(self.seed, 'approve vendor update')
+        self.git(self.seed, 'push', 'origin', 'main')
+        self.git(self.repo, '-c', 'submodule.recurse=false', 'pull', '--ff-only')
+        self.sync()
+        self.assertEqual(latest, self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD'))
+        self.assertEqual(self.git(self.repo, 'status', '--porcelain'), '')
+        self.assertEqual(self.git(self.base / 'skills.git', 'branch', '--list', 'agents-wip/*'), '')
+        self.assertEqual(self.git(self.repo, 'config', 'submodule.recurse'), 'true')
+
     def test_installer_keeps_approved_submodule_versions_and_retires_autocommit(self):
         recorded = self.git(self.repo / '.upstream/cursor-plugins', 'rev-parse', 'HEAD')
         self.advance(self.vendor, "SKILL.md")
