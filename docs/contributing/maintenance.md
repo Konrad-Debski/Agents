@@ -2,7 +2,7 @@
 
 The repository is installed as `~/.agents`. The global `AGENTS.md` is the knowledge map for all projects. Load this document when changing the `~/.agents` base itself.
 
-- On `main`, the `agents-sync` service downloads approved changes every 15 minutes. It stops on local edits or unpublished commits and skips other branches. Publish changes through a pull request.
+- The `agents-sync` service downloads approved changes on a clean `main` and backs up local work on `agents-wip/*`. See [Synchronization](../operations/synchronization.md).
 - Do not run the installer from a worktree against the real HOME as part of testing. The tests have an isolated environment.
 - The installer and synchronization check out the submodule versions recorded in the repository. Update gitlinks through a pull request. Do not edit upstream files. Expose only the selected skills listed in [upstream.md](../skills/upstream.md).
 - A new top-level directory needs a change to `.gitignore` and to the scope list in `scripts/agents.py`.
@@ -24,6 +24,7 @@ Install on the target computer with `bash ~/.agents/install.sh`, without `sudo`.
 
 ## Commits and branches
 
+- If a task will modify any files in this repository, create a new working branch before making the first change. Publish the change through a pull request.
 - Write commit messages following [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), for example `chore: add development skills`. Put an optional scope in parentheses after the type, and mark breaking changes with `!` or a `BREAKING CHANGE:` footer.
 - Name working branches `<type>/<kebab-case-description>`, for example `chore/add-mattpocock-development-skills`. The prefix matches the change type, following the repository convention used in the [PR publishing protocol](../../skills/create-pr/references/workflow.md).
 

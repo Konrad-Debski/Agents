@@ -113,9 +113,16 @@ def check_path(name, blob):
     require(not SECRET_VALUE.search(blob), f'Possible secret in {name}; remove it before synchronizing')
 
 
-def guard(staged=False):
+def guard(staged=False, snapshot=None):
     """Check tracked files too: .gitignore cannot protect an already tracked secret."""
-    if staged:
+    if snapshot:
+        for entry in git('ls-tree', '-rz', snapshot).split(b'\0'):
+            if entry:
+                metadata, raw = entry.split(b'\t', 1)
+                mode, _, object_id = metadata.decode('ascii').split()
+                check_path(os.fsdecode(raw), b'' if mode == '160000' else git('cat-file', 'blob', object_id))
+        names = []
+    elif staged:
         names = git('diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z').split(b'\0')
     else:
         names = git('ls-files', '--cached', '--others', '--exclude-standard', '-z').split(b'\0')
@@ -129,12 +136,13 @@ def guard(staged=False):
             blob = os.fsencode(os.readlink(path)) if path.is_symlink() else path.read_bytes() if path.is_file() else b''
         check_path(name, blob)
     # A manually committed secret must not be pushed just because it was later deleted.
-    commits = git('rev-list', 'origin/main..HEAD').decode().splitlines()
+    head = snapshot or 'HEAD'
+    commits = git('rev-list', 'origin/main..' + head).decode().splitlines()
     for commit in commits:
-        for raw in git('diff-tree', '--root', '--no-commit-id', '--name-only', '-r', '--diff-filter=ACMR', '-z', commit).split(b'\0'):
+        for raw in git('diff-tree', '-m', '--root', '--no-commit-id', '--name-only', '-r', '--diff-filter=ACMR', '-z', commit).split(b'\0'):
             if raw:
                 name = os.fsdecode(raw)
-                mode = git('ls-tree', commit, '--', name).split()[0]
+                mode = git('--literal-pathspecs', 'ls-tree', commit, '--', name).split()[0]
                 check_path(name, b'' if mode == b'160000' else git('show', commit + ':' + name))
 
 
@@ -687,11 +695,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['apply', 'doctor', 'guard', 'validate'])
     parser.add_argument('--dry-run', action='store_true')
-    parser.add_argument('--staged', action='store_true')
+    guard_mode = parser.add_mutually_exclusive_group()
+    guard_mode.add_argument('--staged', action='store_true')
+    guard_mode.add_argument('--snapshot')
     args = parser.parse_args()
     try:
         if args.action == 'guard':
-            guard(args.staged)
+            guard(args.staged, args.snapshot)
         elif args.action == 'validate':
             registry()
         elif args.action == 'doctor':

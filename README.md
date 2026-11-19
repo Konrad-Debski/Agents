@@ -25,6 +25,6 @@ A shared base of knowledge, skills and MCP configuration for AI agents. The repo
 - `adapters/` describes the harness integrations.
 - `install.sh` is the installer. Run it once on a new computer.
 - `scripts/` holds `apply.sh` and `doctor.sh`, which you run by hand, and `agents.py`, which implements them.
-- `scripts/sync/run.sh` downloads approved changes for the timer. It never commits or pushes.
+- `scripts/sync/run.sh` downloads approved changes on clean `main` and backs up local work on `agents-wip/*`.
 - `tests/` checks the adapters and synchronization in isolated directories.
 - `.upstream/` holds external sources that update automatically.
