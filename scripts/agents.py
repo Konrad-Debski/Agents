@@ -385,6 +385,80 @@ def merge_opencode(text, old, desired):
     return merge_jsonc_servers(text, old, desired, opencode_servers, 'OpenCode')
 
 
+def toml_header(line):
+    """Return the key path and array flag of a TOML table header line, or None."""
+    match = re.fullmatch(r'\s*(\[\[?)([^\[\]]+)(\]\]?)\s*(?:#.*)?\n?', line)
+    if not match or len(match[1]) != len(match[3]):
+        return None
+    try:
+        node = tomllib.loads(match[1] + match[2] + match[3])
+    except tomllib.TOMLDecodeError:
+        return None
+    keys = []
+    while isinstance(node, dict) and len(node) == 1:
+        key, node = next(iter(node.items()))
+        keys.append(key)
+    return tuple(keys), match[1] == '[['
+
+
+def recover_toml_block(path, text, old, old_skills):
+    """Rebuild a managed block whose BEGIN line was dropped by a Codex rewrite.
+
+    `codex mcp add` and `codex mcp remove` rewrite every [mcp_servers.*] table and lose the
+    BEGIN comment, while the trailing END stays. Cut the managed tables out by state and
+    append a fresh block, but only when nothing outside the managed values would change.
+    """
+    text = text.replace(END, '')
+    sections, current = [], []
+    for line in text.splitlines(keepends=True):
+        if toml_header(line) and current:
+            sections.append(current)
+            current = []
+        current.append(line)
+    sections.append(current)
+
+    def managed(section):
+        header = toml_header(section[0])
+        if not header:
+            return False
+        keys, array = header
+        if array:
+            return keys == ('skills', 'config') and tomllib.loads(''.join(section[1:])).get('path') in old_skills
+        if len(keys) < 2 or keys[0] != 'mcp_servers' or keys[1] not in old:
+            return False
+        # A local [mcp_servers.NAME.oauth] table may hold the client secret of a managed server.
+        return not (keys[2:3] == ('oauth',) and 'oauth' not in old[keys[1]])
+
+    stripped = ''.join(line for section in sections if not managed(section) for line in section)
+    before = tomllib.loads(text)
+    expected = copy.deepcopy(before)
+    servers = expected.pop('mcp_servers', {})
+    rest = {}
+    for name, value in servers.items():
+        if name not in old:
+            rest[name] = value
+            continue
+        if 'oauth' in value and 'oauth' not in old[name]:
+            rest[name] = {'oauth': value.pop('oauth')}
+        require(value == old[name], f'{path}: damaged markers and managed server {name} was changed by hand')
+    require(set(old) <= set(servers), f'{path}: damaged markers and a managed server was removed by hand')
+    if rest:
+        expected['mcp_servers'] = rest
+    entries = before.get('skills', {}).get('config', [])
+    kept = [entry for entry in entries if entry.get('path') not in old_skills]
+    require(len(entries) - len(kept) == len(old_skills), f'{path}: damaged markers and the managed skills were changed by hand')
+    if old_skills:
+        expected['skills']['config'] = kept
+        if not kept:
+            del expected['skills']['config']
+        if not expected['skills']:
+            del expected['skills']
+    require(tomllib.loads(stripped) == expected,
+            f'{path}: damaged markers; move the managed tables back between BEGIN and END by hand')
+    block = toml_block(old, old_skills)
+    return stripped.rstrip() + ('\n\n' if stripped.strip() and block else '') + block
+
+
 def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
     require(not path.is_symlink(), f'{path}: the configuration is a symlink; merging requires a regular file')
     text = path.read_text() if path.exists() else ''
@@ -394,6 +468,8 @@ def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
         return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code')
     if fmt == 'toml':
         tomllib.loads(text)
+        if text.count(BEGIN) == 0 and text.count(END) == 1:
+            text = recover_toml_block(path, text, old, old_skills)
         require(text.count(BEGIN) == text.count(END) <= 1, f'{path}: damaged markers')
         managed = ''
         if BEGIN in text:
