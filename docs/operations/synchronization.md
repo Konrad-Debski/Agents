@@ -38,6 +38,10 @@ git switch -c recover-agent-work FETCH_HEAD
 
 The installer and synchronization check out the gitlinks recorded in the parent repository. A newer upstream commit is not installed until its gitlink has passed CI and been merged through a pull request. The timer uses the repository’s own snapshot script.
 
+Dependabot checks every source daily and opens one pull request per source. Updates other than tstack merge automatically after CI passes. tstack updates wait for review because they can require changes to the local skill copies.
+
+The installer sets `submodule.recurse` in the checkout, so a manual `git pull` or `git switch` also moves the submodules. Before checking for local changes, every timer run initializes missing submodules and fast-forwards clean submodules whose checkout is an ancestor of the recorded gitlink. Without this step, a gitlink that is older than the checkout would look like a local edit, block synchronization and could be committed back by `git add -A`. A checkout that is ahead of its gitlink or on another line of history stays in place.
+
 During migration, the runner archives a recognized clean orphan of the retired git-sync checkout. Dirty or unrecognized leftovers remain untouched and stop synchronization. [Installation](installation.md) describes the archive and recovery of unpublished commits from the old timer.
 
 Commit work inside submodules in their own repositories. The parent snapshot can record a changed gitlink. The download on `main` stops if a submodule has uncommitted changes. We link selected skills as whole directories, keeping their references and metadata. Codex ignores symlinks of the `SKILL.md` file itself during skill discovery. [upstream.md](../skills/upstream.md) describes choosing new sources.
