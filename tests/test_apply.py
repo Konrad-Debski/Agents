@@ -233,6 +233,47 @@ class ApplyTests(unittest.TestCase):
         self.run_apply(success=False)
         self.assertEqual(path.read_bytes(), before)
 
+    def codex_rewrite(self, managed_url='https://mcp.figma.com/mcp'):
+        """Mimic `codex mcp add personal`: it drops BEGIN, regroups tables and adds its own above END."""
+        path = self.home / '.codex/config.toml'
+        text = path.read_text().replace('# BEGIN agents managed MCP\n', '').replace('\n[', '\n\n[')
+        text = text.replace('https://mcp.figma.com/mcp', managed_url)
+        local_table = '[mcp_servers."google-sheets-official".oauth]\nclient_id = "local-client"\n\n'
+        text = text.replace('[mcp_servers."openaiDeveloperDocs"]', local_table + '[mcp_servers."openaiDeveloperDocs"]')
+        text = text.replace('\n\n[[skills.config]]', '\n\n[mcp_servers.personal]\ncommand = "custom"\n\n[[skills.config]]', 1)
+        text = text.replace('# END agents', '\n[plugins."ponytail@agents"]\nenabled = true\n# END agents')
+        path.write_text('[tui]\nscreen_reader_detection_done = true\n\n' + text)
+        return path
+
+    def test_codex_rewrite_without_begin_marker_is_repaired(self):
+        self.run_apply()
+        path = self.home / '.codex/config.toml'
+        before = tomllib.loads(path.read_text())
+        self.codex_rewrite()
+        self.run_apply()
+        text = path.read_text()
+        self.assertEqual((text.count('# BEGIN agents managed MCP'), text.count('# END agents managed MCP')), (1, 1))
+        data = tomllib.loads(text)
+        self.assertEqual(data['skills'], before['skills'])
+        self.assertTrue(data['plugins']['ponytail@agents']['enabled'])
+        self.assertTrue(data['tui']['screen_reader_detection_done'])
+        self.assertEqual(data['mcp_servers']['personal'], {'command': 'custom'})
+        self.assertEqual(data['mcp_servers']['google-sheets-official']['oauth'], {'client_id': 'local-client'})
+        managed = text[text.index('# BEGIN'):]
+        self.assertNotIn('personal', managed)
+        self.assertNotIn('local-client', managed)
+        self.assertNotIn('plugins', managed)
+        settled = path.read_bytes()
+        self.run_apply()
+        self.assertEqual(path.read_bytes(), settled)
+
+    def test_codex_rewrite_with_hand_edited_managed_server_is_preserved(self):
+        self.run_apply()
+        path = self.codex_rewrite('https://hand-edited.example/mcp')
+        before = path.read_bytes()
+        self.assertIn('managed server figma was changed by hand', self.run_apply(success=False).stderr)
+        self.assertEqual(path.read_bytes(), before)
+
     def test_removal_cleans_only_owned_servers_and_links(self):
         personal = self.write('.claude/skills/personal/SKILL.md', 'Personal')
         self.write('.claude.json', '{"mcpServers":{"personal":{"command":"custom"}}}')
