@@ -238,8 +238,8 @@ class ApplyTests(unittest.TestCase):
         path = self.home / '.codex/config.toml'
         text = path.read_text().replace('# BEGIN agents managed MCP\n', '').replace('\n[', '\n\n[')
         text = text.replace('https://mcp.figma.com/mcp', managed_url)
-        oauth = '[mcp_servers."google-sheets-official".oauth]\nclient_id = "local-client"\n\n'
-        text = text.replace('[mcp_servers."openaiDeveloperDocs"]', oauth + '[mcp_servers."openaiDeveloperDocs"]')
+        local_table = '[mcp_servers."google-sheets-official".oauth]\nclient_id = "local-client"\n\n'
+        text = text.replace('[mcp_servers."openaiDeveloperDocs"]', local_table + '[mcp_servers."openaiDeveloperDocs"]')
         text = text.replace('\n\n[[skills.config]]', '\n\n[mcp_servers.personal]\ncommand = "custom"\n\n[[skills.config]]', 1)
         text = text.replace('# END agents', '\n[plugins."ponytail@agents"]\nenabled = true\n# END agents')
         path.write_text('[tui]\nscreen_reader_detection_done = true\n\n' + text)
