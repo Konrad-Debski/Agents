@@ -210,17 +210,76 @@ class SyncTests(unittest.TestCase):
                          str(units / "agents-sync.service"),
                          str(units / "agents-sync.timer"))
 
-    def test_local_edits_are_preserved_without_committing_or_pushing(self):
-        before = self.git(self.repo, "rev-parse", "HEAD")
-        (self.repo / "skills/skill.md").write_text("Edited skill\n")
-        (self.repo / "skills/new.md").write_text("New skill\n")
-        (self.repo / "skills/remove.md").unlink()
+    def snapshot_branch(self, repo=None):
+        snapshot_id = ((repo or self.repo) / '.git/agents-sync/snapshot-id').read_text().strip()
+        return 'agents-wip/' + snapshot_id
+
+    def test_main_changes_are_backed_up_without_altering_the_checkout(self):
+        before = self.git(self.repo, 'rev-parse', 'HEAD')
+        skill = self.repo / 'skills/skill.md'
+        skill.write_text('Staged skill\n')
+        self.git(self.repo, 'add', 'skills/skill.md')
+        skill.write_text('Edited skill\n')
+        (self.repo / 'skills/new.md').write_text('New skill\n')
+        (self.repo / 'skills/remove.md').unlink()
+        (self.repo / 'skills/.env').write_text('ignored')
+        index = (self.repo / '.git/index').read_bytes()
+        self.sync()
+
+        remote = self.base / 'skills.git'
+        branch = self.snapshot_branch()
+        snapshot = self.git(remote, 'rev-parse', branch)
+        self.assertEqual(self.git(remote, 'show', branch + ':skills/skill.md'), 'Edited skill')
+        self.assertEqual(self.git(remote, 'show', branch + '^1:skills/skill.md'), 'Staged skill')
+        self.assertEqual(self.git(remote, 'show', branch + ':skills/new.md'), 'New skill')
+        for name in ('.env', 'remove.md'):
+            self.assertEqual(self.git(remote, 'ls-tree', branch, 'skills/' + name), '')
+        self.assertEqual(index, (self.repo / '.git/index').read_bytes())
+        self.assertEqual(skill.read_text(), 'Edited skill\n')
+        self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        self.assertEqual(before, self.git(remote, 'rev-parse', 'main'))
+
+        self.sync()
+        self.assertEqual(snapshot, self.git(remote, 'rev-parse', branch))
+        skill.write_text('Later edit\n')
+        self.sync()
+        self.assertEqual(self.git(remote, 'show', branch + ':skills/skill.md'), 'Later edit')
+        self.git(remote, 'merge-base', '--is-ancestor', snapshot, branch)
+
+        other = self.clone('computer-b')
+        self.install(other)
+        (other / 'skills/new.md').write_text('Other computer\n')
+        self.sync(other)
+        self.assertNotEqual(branch, self.snapshot_branch(other))
+        self.assertEqual(self.git(remote, 'show', self.snapshot_branch(other) + ':skills/new.md'),
+                         'Other computer')
+        self.assertEqual(self.git(remote, 'show', branch + ':skills/new.md'), 'New skill')
+
+    def test_failed_push_retries_the_existing_snapshot(self):
+        self.git(self.repo, 'switch', '-c', 'topic')
+        (self.repo / 'skills/skill.md').write_text('Unpublished changes\n')
+        remote = self.base / 'skills.git'
+        hook = remote / 'hooks/pre-receive'
+        hook.write_text('#!/bin/bash\nexit 1\n')
+        hook.chmod(0o755)
         self.assertNotEqual(self.sync(success=False).returncode, 0)
-        self.assertEqual(before, self.git(self.repo, "rev-parse", "HEAD"))
-        self.assertEqual(before, self.git(self.base / "skills.git", "rev-parse", "main"))
-        self.assertEqual((self.repo / "skills/skill.md").read_text(), "Edited skill\n")
-        self.assertTrue((self.repo / "skills/new.md").exists())
-        self.assertFalse((self.repo / "skills/remove.md").exists())
+        self.assertEqual(self.git(remote, 'branch', '--list', 'agents-wip/*'), '')
+        branch = self.snapshot_branch()
+        saved = self.git(self.repo, 'rev-parse', branch.replace('agents-wip/', 'refs/agents-sync/'))
+        hook.unlink()
+        self.sync()
+        self.assertEqual(saved, self.git(remote, 'rev-parse', branch))
+        self.assertEqual(self.git(self.repo, 'branch', '--show-current'), 'topic')
+
+    def test_snapshot_rejects_a_secret_in_the_staged_version(self):
+        path = self.repo / 'skills/leaked.txt'
+        path.write_text('ghp_' + 'a' * 36)
+        self.git(self.repo, 'add', 'skills/leaked.txt')
+        path.write_text('Safe worktree version')
+        result = self.sync(success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
+        self.assertEqual(self.git(self.base / 'skills.git', 'branch', '--list', 'agents-wip/*'), '')
 
     def test_sync_refreshes_claude_skills_from_remote_and_preserves_personal_skills(self):
         local = self.base / "config/agents/local.json"
@@ -343,16 +402,21 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(skill.read_text(), "Unfinished local edit\n")
         self.assertEqual(before, self.git(self.repo, "rev-parse", "HEAD"))
 
-    def test_other_branches_and_overlapping_runs_do_not_commit(self):
+    def test_topic_snapshots_and_overlapping_runs_preserve_head(self):
         before = self.git(self.repo, "rev-parse", "HEAD")
         (self.repo / "skills/new.md").write_text("Still editing\n")
         self.git(self.repo, "switch", "-c", "topic")
         self.sync()
+        remote = self.base / 'skills.git'
+        branch = self.snapshot_branch()
+        snapshot = self.git(remote, 'rev-parse', branch)
         self.git(self.repo, "switch", "main")
+        (self.repo / "skills/new.md").write_text("A new edit\n")
         with (self.repo / ".git/agents-sync/lock").open("w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.sync()
         self.assertEqual(before, self.git(self.repo, "rev-parse", "HEAD"))
+        self.assertEqual(snapshot, self.git(remote, 'rev-parse', branch))
 
     def test_failed_submodule_checkout_does_not_revert_remote_pointer(self):
         latest = self.advance(self.vendor, "SKILL.md")
@@ -376,13 +440,14 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(latest, self.git(self.repo / ".upstream/cursor-plugins", "rev-parse", "HEAD"))
         self.assertEqual(expected, self.git(self.base / "skills.git", "rev-parse", "main"))
 
-    def test_local_commits_are_never_pushed_or_rebased(self):
+    def test_local_commits_are_backed_up_off_main(self):
         remote_before = self.git(self.base / 'skills.git', 'rev-parse', 'main')
         (self.repo / 'skills/skill.md').write_text('Local version\n')
         self.commit(self.repo, 'local commit')
         local_before = self.git(self.repo, 'rev-parse', 'HEAD')
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.sync()
         self.assertEqual(local_before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        self.assertEqual(local_before, self.git(self.base / 'skills.git', 'rev-parse', self.snapshot_branch() + '^1'))
         self.assertEqual(remote_before, self.git(self.base / 'skills.git', 'rev-parse', 'main'))
         self.assertFalse((self.repo / '.git/rebase-merge').exists())
 
@@ -419,11 +484,13 @@ class SyncTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Possible secret in skills/leaked.txt', result.stdout)
 
-    def test_invalid_registry_does_not_commit_or_apply(self):
+    def test_invalid_local_registry_can_be_backed_up_without_advancing_head(self):
         before = self.git(self.repo, 'rev-parse', 'HEAD')
         (self.repo / 'mcp/servers.json').write_text('{"version": 1, "servers": {"bad": {"transport": "unknown"}}}')
-        self.assertNotEqual(self.sync(success=False).returncode, 0)
+        self.sync()
         self.assertEqual(before, self.git(self.repo, 'rev-parse', 'HEAD'))
+        self.assertEqual(self.git(self.base / 'skills.git', 'show', self.snapshot_branch() + ':mcp/servers.json'),
+                         (self.repo / 'mcp/servers.json').read_text())
 
     def test_two_machines_apply_pulled_mcp_configuration(self):
         other = self.clone('second-machine')

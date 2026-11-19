@@ -1,6 +1,6 @@
 # Installation
 
-Requirements: Linux with a systemd user instance, Git, Bash, Python 3.11 or newer, and `flock` from util-linux. Fetching from `origin/main` must work without an interactive login. Installation and synchronization never create commits or push changes.
+Requirements: Linux with a systemd user instance, Git, Bash, Python 3.11 or newer, and `flock` from util-linux. The timer needs non-interactive Git access to read `origin/main` and write branches under `agents-wip/*` on `origin`. Installation itself fetches approved versions and applies configuration.
 
 The repository should occupy the `~/.agents` directory. Do not clone it inside an existing `~/.agents/skills`. With an existing installation, use `apply --dry-run` described below and resolve the reported collisions.
 
@@ -23,7 +23,7 @@ bash "$HOME/.agents/install.sh" --no-sync
 
 The scripts use the Python standard library and install no packages. The automatic schedule currently supports Linux. macOS and Windows have no schedule installer.
 
-After upgrading from the publishing timer, run the installer again. It removes the old git-sync autocommit settings. Local edits and local commits on `main` stop synchronization until you move them to a working branch and publish a pull request.
+After upgrading from the publishing timer, run the installer again. It removes the old git-sync autocommit settings. The current timer saves local work to a separate backup branch. Move work on `main` to a working branch and publish it through a pull request.
 
 Git may leave `.upstream/git-sync` behind after the gitlink is removed. The installer and new runner archive it under `.git/agents-sync/retired-git-sync.*/checkout` only when it is an untracked, clean submodule checkout with the historical official origin. The archive retains its files, Git metadata connection and local commits. A dirty checkout, a symlink or a different origin is preserved in place and stops migration with a specific message. Move that checkout outside the repository yourself before retrying; do not delete local work to satisfy the check.
 
