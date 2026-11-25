@@ -330,17 +330,18 @@ class SyncTests(unittest.TestCase):
         (self.vendor / '.claude-plugin').mkdir()
         (self.vendor / '.claude-plugin/plugin.json').write_text('{}\n')
         (self.vendor / '.claude-plugin/marketplace.json').write_text('{}\n')
-        (self.vendor / '.agents/plugins').mkdir(parents=True)
-        (self.vendor / '.agents/plugins/marketplace.json').write_text('{}\n')
+        (self.vendor / '.codex-plugin').mkdir()
+        (self.vendor / '.codex-plugin/plugin.json').write_text('{}\n')
         self.commit(self.vendor, 'plugin manifest')
         self.git(self.vendor, 'push', 'origin', 'main')
         self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/ponytail')
         self.git(self.seed, 'submodule', 'add', '-b', 'main', str(self.base / 'vendor.git'), '.upstream/modern-web-guidance')
         self.commit(self.seed, 'add upstream plugins')
         self.git(self.seed, 'push', 'origin', 'main')
-        expected = f'plugin marketplace add {self.repo}/adapters/codex\nplugin add ponytail@agents\n'
+        agents = f'plugin marketplace add {self.repo}/adapters/codex\n'
+        expected = agents + 'plugin add ponytail@agents\n'
+        expected += 'plugin marketplace list\n' + agents + 'plugin add modern-web-guidance@agents\n'
         marketplace = f'plugin marketplace add {self.repo}/.upstream/modern-web-guidance\n'
-        expected += marketplace + 'plugin add modern-web-guidance@googlechrome\n'
         self.sync()
         self.assertEqual(log.read_text(), expected)
         self.assertIn('plugin install php-lsp@claude-plugins-official\n', claude_log.read_text())

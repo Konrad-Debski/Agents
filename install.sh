@@ -8,6 +8,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # Apply without touching the timer first, e.g. during a migration rehearsal.
 if [[ ${1:-} == --no-sync ]]; then
     shift
+    python3 "$script_dir/scripts/agents.py" secrets --prompt
     exec bash "$script_dir/scripts/apply.sh" "$@"
 fi
 [[ $# == 0 ]] || { printf 'Usage: install.sh [--no-sync [apply.sh options]]\n' >&2; exit 1; }
@@ -58,6 +59,8 @@ git -C "$repo_dir" submodule update --init --recursive --checkout
 # A manual pull or switch then also moves submodules, so stale checkouts are not committed back.
 git -C "$repo_dir" config --local submodule.recurse true
 git -C "$repo_dir" config --local push.recurseSubmodules check
+# Secrets stay out of Git, so ask for the ones the registry needs before applying; without a terminal only list them.
+python3 "$repo_dir/scripts/agents.py" secrets --prompt
 for option in sync syncNewFiles syncSkipHooks autocommitscript; do
     git -C "$repo_dir" config --local --unset-all "branch.main.$option" || [[ $? == 5 ]]
 done
