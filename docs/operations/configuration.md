@@ -22,13 +22,15 @@ Provide API keys in the environment of the launched harness. Variables set only 
 
 ## MCP definitions
 
-The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, and the public OpenAI documentation server. Figma logs in through OAuth separately in each harness and needs no secret. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
+The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, the [Userback](https://docs.userback.io/docs/userback-mcp) server at `https://mcp.userback.io/v1/mcp/`, and the public OpenAI documentation server. Figma and Userback log in through OAuth separately in each harness and need no secret. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
 
 The default Context7 configuration connects without an API key, so a missing authorization variable does not block MCP startup. A key gives [higher rate limits](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). You can keep your own authorized connections and disable the shared entry with `disabled_servers_by_harness`.
 
 To require authorization in the shared Context7 definition, add `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` and set the `CONTEXT7_AUTHORIZATION` variable to the full value `Bearer <Context7 API key>`. The adapters write references to the environment, and `doctor` checks that the variable exists. The key value stays outside the repository.
 
-After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers. The `gallery` and `version` fields do not belong in the shared registry.
+After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers.
+
+`overrides` changes one server in a single harness. It accepts `name`, `client_id` (replaces `oauth.client_id`) and `fields` (extra string fields that cannot replace generated keys). VS Code uses it to match entries installed from its MCP gallery: `io.github.upstash/context7`, `com.figma.mcp/mcp` with `gallery` and `version`, and `Google Sheets` with the VS Code OAuth client. Other harnesses keep the shared names, because Claude Code and Codex accept only letters, digits, `-` and `_`. When a harness already has an identical entry under the target name, `apply` takes it over; a different entry is reported as a collision. If VS Code updates a gallery server, update its `version` in the registry, or `apply` reports the entry as changed by hand.
 
 Format example:
 

@@ -31,6 +31,9 @@ MANUAL_INSTRUCTIONS = {
 }
 
 
+HARNESSES = {'codex', 'claude-code', 'cursor', 'opencode', 'vscode'}
+
+
 class ConfigError(Exception):
     pass
 
@@ -60,7 +63,7 @@ def registry():
         require(re.fullmatch(r'[A-Za-z0-9_-]+', name), f'Invalid MCP name: {name}')
         require(isinstance(server, dict), f'{name}: a server definition is required')
         transport = server.get('transport')
-        fields = {'transport', 'harnesses', 'requires_env'}
+        fields = {'transport', 'harnesses', 'requires_env', 'overrides'}
         if transport == 'stdio':
             fields |= {'command', 'args', 'env_vars'}
             require(isinstance(server.get('command'), str) and server['command'], f'{name}: missing command')
@@ -97,7 +100,22 @@ def registry():
             if key in {'env_vars', 'requires_env'}:
                 require(all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', v) for v in values), f'{name}: invalid variable name')
         if 'harnesses' in server:
-            require(set(server['harnesses']) <= {'codex', 'claude-code', 'cursor', 'opencode', 'vscode'}, f'{name}: unknown harness')
+            require(set(server['harnesses']) <= HARNESSES, f'{name}: unknown harness')
+        overrides = server.get('overrides', {})
+        require(isinstance(overrides, dict) and set(overrides) <= HARNESSES, f'{name}: overrides must map harnesses')
+        for harness, override in overrides.items():
+            require(isinstance(override, dict) and not (set(override) - {'name', 'client_id', 'fields'}),
+                    f'{name}: an override accepts name, client_id and fields')
+            # VS Code keeps gallery names such as io.github.upstash/context7; other harnesses need plain keys.
+            pattern = r'[A-Za-z0-9][A-Za-z0-9 ._/-]*' if harness == 'vscode' else r'[A-Za-z0-9_-]+'
+            require(isinstance(override.get('name', name), str) and re.fullmatch(pattern, override.get('name', name)),
+                    f'{name}: invalid {harness} name')
+            require('client_id' not in override or (server.get('oauth') and isinstance(override['client_id'], str)),
+                    f'{name}: client_id override requires oauth')
+            extra = override.get('fields', {})
+            require(isinstance(extra, dict) and all(isinstance(v, str) for v in extra.values())
+                    and not (set(extra) & {'type', 'url', 'command', 'args', 'env', 'headers', 'oauth', 'auth'}),
+                    f'{name}: fields must be strings and must not replace generated keys')
     return data['servers']
 
 
@@ -173,10 +191,16 @@ def within(part, whole):
 
 
 def convert(server, harness):
+    override = server.get('overrides', {}).get(harness, {})
     result = convert_plain(server, harness)
     if server.get('oauth'):
-        result |= convert_oauth(server['oauth'], harness)
-    return result
+        oauth = server['oauth'] | ({'client_id': override['client_id']} if 'client_id' in override else {})
+        result |= convert_oauth(oauth, harness)
+    return result | override.get('fields', {})
+
+
+def harness_name(key, server, harness):
+    return server.get('overrides', {}).get(harness, {}).get('name', key)
 
 
 def convert_plain(server, harness):
@@ -369,7 +393,9 @@ def merge_jsonc_servers(text, old, desired, read, label):
     for name, value in old.items():
         if name in current:
             require(current.get(name) == value, f'{label}: managed server {name} was changed by hand')
-    require(not ((set(current) - set(old)) & set(desired)), f'{label}: MCP name collision')
+    # An identical entry added by hand, for example from the VS Code gallery, becomes managed.
+    require(all(current[name] == desired[name] for name in (set(current) - set(old)) & set(desired)),
+            f'{label}: MCP name collision')
     for name in old:
         if name not in desired:
             text = jsonc_property(text, section, name, remove=True)
@@ -633,9 +659,12 @@ def prepare():
             for skill in sorted((ROOT / 'skills').iterdir()):
                 if (skill / 'SKILL.md').is_file() and skill.name not in plugin_skills:
                     link(base / 'skills' / skill.name, skill)
-        desired = {key: convert(server, name) for key, server in servers.items()
-                   if key not in disabled and key not in scoped_disabled.get(name, [])
-                   and name in server.get('harnesses', selected)}
+        pairs = [(harness_name(key, server, name), key) for key, server in servers.items()
+                 if key not in disabled and key not in scoped_disabled.get(name, [])
+                 and name in server.get('harnesses', selected)]
+        keys = dict(pairs)
+        require(len(keys) == len(pairs), f'{name}: two MCP servers share a name')
+        desired = {output: convert(servers[source], name) for output, source in keys.items()}
         key = str(config_path)
         old = previous['mcp'].get(key, {}).get('servers', {})
         if name == 'opencode':
@@ -648,8 +677,8 @@ def prepare():
         skills = [str(ROOT / 'skills' / skill / 'SKILL.md') for skill in adapter.get('plugin_skills', [])] if name == 'codex' else []
         old_skills = previous['mcp'].get(key, {}).get('skills', [])
         content = merge_mcp(config_path, adapter['format'], old, desired, old_skills, skills)
-        for server in desired:
-            oauth = servers[server].get('oauth', {})
+        for server, source in keys.items():
+            oauth = servers[source].get('oauth', {})
             if 'client_secret_env' not in oauth:
                 continue
             if name == 'codex' and not tomllib.loads(content.decode())['mcp_servers'][server].get('oauth', {}).get('client_secret'):
@@ -660,7 +689,7 @@ def prepare():
                                                  load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
                 notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {server}; '
                                f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
-                               f'{server} {servers[server]["url"]}; then run apply.sh again')
+                               f'{server} {servers[source]["url"]}; then run apply.sh again')
         before = snapshot(config_path)
         if before[0] != 'missing' or desired or skills:
             if before[1] != content:

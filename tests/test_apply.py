@@ -26,6 +26,11 @@ class ApplyTests(unittest.TestCase):
         self.repo.mkdir(parents=True)
         for directory in ('scripts', 'adapters', 'mcp'):
             shutil.copytree(ROOT / directory, self.repo / directory, symlinks=True)
+        # Most tests exercise the shared names; the override tests restore the real registry.
+        path, data = self.servers()
+        for server in data['servers'].values():
+            server.pop('overrides', None)
+        path.write_text(json.dumps(data))
         (self.repo / 'AGENTS.md').write_text('Shared instructions\n')
         skill = self.repo / 'skills/example'
         skill.mkdir(parents=True)
@@ -390,7 +395,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         local = self.config / 'agents/local.json'
         data = json.loads(local.read_text())
-        data['disabled_servers_by_harness'] = {'vscode': ['context7', 'figma', 'google-sheets-official'], 'opencode': ['context7']}
+        data['disabled_servers_by_harness'] = {'vscode': ['context7', 'figma', 'google-sheets-official', 'Userback'], 'opencode': ['context7']}
         local.write_text(json.dumps(data))
         self.run_apply()
         self.assertEqual(self.vscode_servers(), {'io.github.upstash/context7': personal})
@@ -694,7 +699,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(before, path.read_bytes())
 
     def test_opencode_filters_harness_and_disabled_servers(self):
-        self.local(['opencode'], ['context7', 'figma', 'google-sheets-official'])
+        self.local(['opencode'], ['context7', 'figma', 'google-sheets-official', 'Userback'])
         path, data = self.servers()
         data['servers']['codexOnly'] = {'transport':'http', 'url':'https://example.com/codex', 'harnesses':['codex']}
         data['servers']['openaiDeveloperDocs']['harnesses'] = ['opencode']
@@ -800,7 +805,53 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.config / 'Code/User/AGENTS.md').exists())
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
-        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official', 'Userback'})
+
+    def test_vscode_overrides_change_only_vscode_entries(self):
+        shutil.copy(ROOT / 'mcp/servers.json', self.repo / 'mcp/servers.json')
+        self.run_apply()
+        vscode = self.vscode_servers()
+        self.assertEqual(set(vscode), {'io.github.upstash/context7', 'com.figma.mcp/mcp', 'Google Sheets', 'Userback'})
+        self.assertEqual(vscode['com.figma.mcp/mcp'], {'url': 'https://mcp.figma.com/mcp', 'type': 'http',
+                                                        'gallery': 'https://api.mcp.github.com', 'version': '1.0.3'})
+        sheets = '961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com'
+        self.assertEqual(vscode['Google Sheets']['oauth'], {'clientId': sheets})
+        claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
+        self.assertEqual(set(claude), {'context7', 'figma', 'google-sheets-official', 'Userback'})
+        self.assertNotIn('gallery', claude['figma'])
+        self.assertNotEqual(claude['google-sheets-official']['oauth']['clientId'], sheets)
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']
+        self.assertIn('google-sheets-official', codex)
+        self.run_apply(action='doctor')
+
+    def test_vscode_adopts_only_identical_hand_added_entries(self):
+        self.local(['vscode'])
+        path, data = self.servers()
+        data['servers']['figma']['overrides'] = {'vscode': {'name': 'com.figma.mcp/mcp', 'fields': {'version': '1.0.3'}}}
+        path.write_text(json.dumps(data))
+        mcp = self.config / 'Code/User/mcp.json'
+        mcp.parent.mkdir(parents=True)
+        entry = {'type': 'http', 'url': 'https://mcp.figma.com/mcp', 'version': '1.0.2'}
+        mcp.write_text(json.dumps({'servers': {'com.figma.mcp/mcp': entry}}))
+        self.assertIn('MCP name collision', self.run_apply(success=False).stderr)
+        entry['version'] = '1.0.3'
+        mcp.write_text(json.dumps({'servers': {'com.figma.mcp/mcp': entry}}))
+        self.run_apply()
+        self.assertEqual(self.vscode_servers()['com.figma.mcp/mcp'], entry)
+        del data['servers']['figma']
+        path.write_text(json.dumps(data))
+        self.run_apply()
+        self.assertNotIn('com.figma.mcp/mcp', self.vscode_servers())
+
+    def test_override_names_are_validated(self):
+        path, data = self.servers()
+        for override, message in (({'codex': {'name': 'a b'}}, 'invalid codex name'),
+                                  ({'vscode': {'fields': {'url': 'x'}}}, 'must not replace generated keys'),
+                                  ({'vscode': {'client_id': 'x'}}, 'client_id override requires oauth'),
+                                  ({'vscode': {'name': 'figma'}}, 'two MCP servers share a name')):
+            data['servers']['context7']['overrides'] = override
+            path.write_text(json.dumps(data))
+            self.assertIn(message, self.run_apply(success=False).stderr)
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])
@@ -827,7 +878,7 @@ class ApplyTests(unittest.TestCase):
         shared['servers']['openaiDeveloperDocs']['harnesses'] = ['codex']
         servers_path.write_text(json.dumps(shared))
         self.run_apply()
-        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
+        self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official', 'Userback'})
 
     def test_narrowing_server_harnesses_removes_only_managed_entries_elsewhere(self):
         self.write('.claude.json', '{"mcpServers": {"personal": {"command": "custom"}}}')
@@ -837,7 +888,7 @@ class ApplyTests(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.run_apply()
         claude = json.loads((self.home / '.claude.json').read_text())['mcpServers']
-        self.assertEqual(set(claude), {'personal', 'context7', 'figma', 'google-sheets-official'})
+        self.assertEqual(set(claude), {'personal', 'context7', 'figma', 'google-sheets-official', 'Userback'})
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers'])
         self.assertNotIn('openaiDeveloperDocs', json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers'])
         self.assertNotIn('openaiDeveloperDocs', self.vscode_servers())

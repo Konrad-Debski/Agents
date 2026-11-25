@@ -1,6 +1,6 @@
 # VS Code
 
-VS Code in the Local harness reads personal skills from `~/.agents/skills`, so the adapter does not copy them. The adapter merges MCP in `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`, which is the user profile. Shared servers go into the `servers` section and use `${env:NAME}` references. We keep comments, trailing commas, `inputs`, personal servers and other settings. The adapter does not write to a project's `.vscode/mcp.json` or to a portable `.mcp.json`. Plugins in `~/.vscode/agent-plugins` are out of scope, because they work only in VS Code. We do not read or change them.
+VS Code in the Local harness reads personal skills from `~/.agents/skills`, so the adapter does not copy them. The adapter merges MCP in `${XDG_CONFIG_HOME:-~/.config}/Code/User/mcp.json`, which is the user profile. Shared servers go into the `servers` section and use `${env:NAME}` references. Context7, Figma and Google Sheets use the names VS Code gives them when installed from its MCP gallery; [configuration.md](../operations/configuration.md) describes the `overrides` field. We keep comments, trailing commas, `inputs`, personal servers and other settings. The adapter does not write to a project's `.vscode/mcp.json` or to a portable `.mcp.json`. Plugins in `~/.vscode/agent-plugins` are out of scope, because they work only in VS Code. We do not read or change them.
 
 Local harness instructions have no documented global file, so add them by hand in **Chat: Open Customizations > Instructions** for the Local harness as a user instruction:
 
