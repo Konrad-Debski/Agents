@@ -1,5 +1,6 @@
 """Exercise adapters against real files in an isolated HOME."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,8 @@ class ApplyTests(unittest.TestCase):
         self.repo.mkdir(parents=True)
         for directory in ('scripts', 'adapters', 'mcp'):
             shutil.copytree(ROOT / directory, self.repo / directory, symlinks=True)
+        # A fixed registry keeps these tests independent of the servers we currently share.
+        shutil.copy(ROOT / 'tests/fixtures/servers.json', self.repo / 'mcp/servers.json')
         (self.repo / 'AGENTS.md').write_text('Shared instructions\n')
         skill = self.repo / 'skills/example'
         skill.mkdir(parents=True)
@@ -518,10 +521,11 @@ class ApplyTests(unittest.TestCase):
     def test_codex_and_claude_report_missing_local_oauth_secret(self):
         self.local(['codex', 'claude-code'])
         result = self.run_apply()
-        self.assertIn('[mcp_servers.google-sheets-official.oauth]', result.stdout)
-        self.assertIn('claude mcp add -s user', result.stdout)
+        self.assertIn('[mcp_servers."google-sheets-official".oauth]', result.stdout)
+        # On Linux apply stores the secret from .env itself, so the notice points there.
+        self.assertIn('Claude Code: put the client secret of google-sheets-official in ~/.agents/.env', result.stdout)
         self.write('.claude/.credentials.json', '{"mcpOAuthClientConfig": {"google-sheets-official|0123": {"clientSecret": "x"}}}')
-        self.assertNotIn('claude mcp add', self.run_apply().stdout)
+        self.assertNotIn('Claude Code:', self.run_apply().stdout)
 
     def test_claude_entry_reduced_by_cli_is_restored(self):
         self.local(['claude-code'])
@@ -801,6 +805,105 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
         self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
+
+    def test_shared_registry_uses_vscode_names_in_every_harness(self):
+        shutil.copy(ROOT / 'mcp/servers.json', self.repo / 'mcp/servers.json')
+        names = {'io.github.upstash/context7', 'com.figma.mcp/mcp', 'Google Sheets', 'Userback'}
+        client = '961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com'
+        mcp = self.config / 'Code/User/mcp.json'
+        mcp.parent.mkdir(parents=True)
+        # The entries VS Code wrote when they were installed by hand are taken over, not reported as collisions.
+        mcp.write_text('{\n  "servers": {\n    "Google Sheets": {"url": "https://sheetsmcp.googleapis.com/mcp/v1", '
+                       '"type": "http", "oauth": {"clientId": "' + client + '",},},\n'
+                       '    "io.github.upstash/context7": {"type": "http", "url": "https://mcp.context7.com/mcp", '
+                       '"headers": {"CONTEXT7_API_KEY": "${env:CONTEXT7_API_KEY}"},},\n'
+                       '    "com.figma.mcp/mcp": {"type": "http", "url": "https://mcp.figma.com/mcp", '
+                       '"gallery": "https://api.mcp.github.com", "version": "1.0.3",},\n  },\n}\n')
+        self.run_apply()
+        self.assertEqual(set(self.vscode_servers()), names)
+        # Gallery metadata stays with the entry, and a version update by VS Code is not a hand edit.
+        mcp.write_text(mcp.read_text().replace('"1.0.3"', '"1.0.4"'))
+        self.run_apply()
+        self.assertEqual(self.vscode_servers()['com.figma.mcp/mcp']['version'], '1.0.4')
+        self.assertEqual(self.vscode_servers()['Google Sheets']['oauth'], {'clientId': client})
+        self.assertEqual(set(json.loads((self.home / '.claude.json').read_text())['mcpServers']), names)
+        self.assertEqual(set(json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers']), names)
+        self.assertEqual(set(tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']),
+                         names | {'openaiDeveloperDocs'})
+        self.assertEqual(set(json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']), names)
+        self.env['CONTEXT7_API_KEY'] = 'ctx7sk-test'
+        self.run_apply(action='doctor')
+
+    def test_env_file_variables_reach_the_session_environment(self):
+        path, data = self.servers()
+        data['servers']['context7']['header_env'] = {'CONTEXT7_API_KEY': 'CONTEXT7_API_KEY'}
+        path.write_text(json.dumps(data))
+        (self.repo / '.env').write_text('# local\nCONTEXT7_API_KEY="ctx7sk-test"\nUNRELATED=1\n')
+        result = self.run_apply()
+        self.assertIn('log out and back in', result.stdout)
+        self.assertNotIn('ctx7sk-test', result.stdout + result.stderr)
+        exported = self.config / 'environment.d/60-agents.conf'
+        self.assertEqual(exported.read_text().splitlines()[1:], ['CONTEXT7_API_KEY=ctx7sk-test'])
+        self.assertEqual(exported.stat().st_mode & 0o777, 0o600)
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']['context7']
+        self.assertEqual(codex['env_http_headers'], {'CONTEXT7_API_KEY': 'CONTEXT7_API_KEY'})
+        self.env.pop('CONTEXT7_API_KEY', None)
+        self.assertIn('it is in .env, so log out and back in', self.run_apply(action='doctor', success=False).stdout)
+        self.assertNotIn('log out', self.run_apply().stdout)
+        (self.repo / '.env').write_text('CONTEXT7_API_KEY=$HOME\n')
+        result = self.run_apply(success=False)
+        self.assertIn('characters environment.d would change', result.stderr)
+        self.assertNotIn('$HOME', result.stderr)
+        (self.repo / '.env').unlink()
+        self.run_apply()
+        self.assertFalse(exported.exists())
+
+    def test_oauth_secret_from_env_file_reaches_codex_and_claude_stores(self):
+        self.local(['codex', 'claude-code', 'opencode'])
+        (self.repo / '.env').write_text('GOOGLE_SHEETS_MCP_CLIENT_SECRET=sheets-secret\n')
+        credentials = self.home / '.claude/.credentials.json'
+        credentials.parent.mkdir(parents=True, exist_ok=True)
+        login = {'claudeAiOauth': {'accessToken': 'keep'}, 'mcpOAuthClientConfig': {'personal|0': {'clientSecret': 'p'}}}
+        credentials.write_text(json.dumps(login))
+        result = self.run_apply()
+        self.assertNotIn('Claude Code: save the OAuth secret', result.stdout)
+        self.assertNotIn('Codex: put the client secret', result.stdout)
+        client = json.loads((self.repo / 'mcp/servers.json').read_text())['servers']['google-sheets-official']['oauth']['client_id']
+        codex = tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']['google-sheets-official']
+        self.assertEqual(codex['oauth'], {'client_id': client, 'client_secret': 'sheets-secret'})
+        url = 'https://sheetsmcp.googleapis.com/mcp/v1'
+        digest = hashlib.sha256(json.dumps({'type': 'http', 'url': url, 'headers': {}}, separators=(',', ':')).encode()).hexdigest()[:16]
+        stored = json.loads(credentials.read_text())
+        self.assertEqual(stored['claudeAiOauth'], login['claudeAiOauth'])
+        self.assertEqual(stored['mcpOAuthClientConfig'], {'personal|0': {'clientSecret': 'p'},
+                                                          'google-sheets-official|' + digest: {'clientSecret': 'sheets-secret'}})
+        self.assertEqual(credentials.stat().st_mode & 0o777, 0o600)
+        opencode = json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']['google-sheets-official']
+        self.assertEqual(opencode['oauth']['client_secret'], '{env:GOOGLE_SHEETS_MCP_CLIENT_SECRET}')
+        before = credentials.read_bytes()
+        self.run_apply()
+        self.assertEqual(before, credentials.read_bytes())
+        self.local(['codex', 'opencode'])
+        self.run_apply()
+        self.assertEqual(json.loads(credentials.read_text())['mcpOAuthClientConfig'], {'personal|0': {'clientSecret': 'p'}})
+
+    def test_env_file_does_not_replace_a_foreign_session_file(self):
+        path, data = self.servers()
+        data['servers']['context7']['header_env'] = {'CONTEXT7_API_KEY': 'CONTEXT7_API_KEY'}
+        path.write_text(json.dumps(data))
+        (self.repo / '.env').write_text('CONTEXT7_API_KEY=ctx7sk-test\n')
+        exported = self.config / 'environment.d/60-agents.conf'
+        exported.parent.mkdir(parents=True)
+        exported.write_text('PERSONAL=1\n')
+        self.assertIn('foreign file', self.run_apply(success=False).stderr)
+        self.assertEqual(exported.read_text(), 'PERSONAL=1\n')
+
+    def test_vscode_reports_a_different_hand_added_entry_as_collision(self):
+        self.local(['vscode'])
+        mcp = self.config / 'Code/User/mcp.json'
+        mcp.parent.mkdir(parents=True)
+        mcp.write_text(json.dumps({'servers': {'figma': {'type': 'http', 'url': 'https://personal.example/mcp'}}}))
+        self.assertIn('MCP name collision', self.run_apply(success=False).stderr)
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])

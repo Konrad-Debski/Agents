@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -57,7 +58,8 @@ def registry():
     data = load_json(ROOT / 'mcp/servers.json')
     require(data.get('version') == 1 and isinstance(data.get('servers'), dict), 'Unsupported MCP registry')
     for name, server in data['servers'].items():
-        require(re.fullmatch(r'[A-Za-z0-9_-]+', name), f'Invalid MCP name: {name}')
+        # VS Code gallery names such as io.github.upstash/context7 work in every harness.
+        require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._/-]*', name), f'Invalid MCP name: {name}')
         require(isinstance(server, dict), f'{name}: a server definition is required')
         transport = server.get('transport')
         fields = {'transport', 'harnesses', 'requires_env'}
@@ -146,14 +148,16 @@ def guard(staged=False, snapshot=None):
                 check_path(name, b'' if mode == b'160000' else git('show', commit + ':' + name))
 
 
-def convert_oauth(oauth, harness):
-    """Only OpenCode and Cursor can reference the client secret; the others keep it locally."""
+def convert_oauth(oauth, harness, secrets=None):
+    """OpenCode and Cursor reference the client secret; Codex accepts only its value, taken from .env."""
     secret = oauth.get('client_secret_env')
     scopes = oauth.get('scopes', [])
     metadata = oauth.get('auth_server_metadata_url')
     if harness == 'codex':
-        # A managed table cannot be reopened, so a client with a secret leaves the whole oauth table local.
-        return ({'scopes': scopes} if scopes else {}) | ({} if secret else {'oauth': {'client_id': oauth['client_id']}})
+        value = (secrets or {}).get(secret)
+        # Without the value in .env the whole oauth table stays local, because a managed table cannot be reopened.
+        table = {'oauth': {'client_id': oauth['client_id']} | ({'client_secret': value} if value else {})}
+        return ({'scopes': scopes} if scopes else {}) | ({} if secret and not value else table)
     if harness == 'cursor':
         return {'auth': {'CLIENT_ID': oauth['client_id']} | ({'CLIENT_SECRET': '${env:' + secret + '}'} if secret else {})
                 | ({'scopes': scopes} if scopes else {})}
@@ -172,11 +176,38 @@ def within(part, whole):
                                            else value == whole[key]) for key, value in part.items())
 
 
-def convert(server, harness):
+def convert(server, harness, secrets=None):
     result = convert_plain(server, harness)
     if server.get('oauth'):
-        result |= convert_oauth(server['oauth'], harness)
+        result |= convert_oauth(server['oauth'], harness, secrets)
     return result
+
+
+def claude_secret_key(name, server):
+    """Claude Code files a client secret under the server name and a digest of its connection."""
+    connection = {'type': server['type'], 'url': server['url'], 'headers': server.get('headers', {})}
+    return name + '|' + hashlib.sha256(json.dumps(connection, separators=(',', ':')).encode()).hexdigest()[:16]
+
+
+def merge_claude_secrets(path, owned, wanted):
+    """Change only our entries in Claude Code's plain-text credential store; its login tokens stay as they are."""
+    before = snapshot(path)
+    require(before[0] != 'link', f'{path}: the credential store is a symlink; merging requires a regular file')
+    data = json.loads(before[1]) if before[0] == 'file' else {}
+    require(isinstance(data, dict) and isinstance(data.get('mcpOAuthClientConfig', {}), dict), f'{path}: unexpected format')
+    stored = data.get('mcpOAuthClientConfig', {})
+    for key in owned:
+        if key not in wanted:
+            stored.pop(key, None)
+    for key, value in wanted.items():
+        stored[key] = stored.get(key, {}) | {'clientSecret': value}
+    if stored:
+        data['mcpOAuthClientConfig'] = stored
+    else:
+        data.pop('mcpOAuthClientConfig', None)
+    if before[0] == 'file' and json.loads(before[1]) == data or before[0] == 'missing' and not data:
+        return None
+    return before, ('file', json_bytes(data), 0o600)
 
 
 def convert_plain(server, harness):
@@ -363,20 +394,28 @@ def vscode_servers(text):
     return servers, ('servers',)
 
 
-def merge_jsonc_servers(text, old, desired, read, label):
+def merge_jsonc_servers(text, old, desired, read, label, ignored=()):
     text = text if text.strip() else '{}\n'
     current, section = read(text)
+
+    def same(name, value):
+        entry = current.get(name)
+        return isinstance(entry, dict) and {k: v for k, v in entry.items() if k not in ignored} == value
+
     for name, value in old.items():
         if name in current:
-            require(current.get(name) == value, f'{label}: managed server {name} was changed by hand')
-    require(not ((set(current) - set(old)) & set(desired)), f'{label}: MCP name collision')
+            require(same(name, value), f'{label}: managed server {name} was changed by hand')
+    # An identical entry added by hand, for example from the VS Code gallery, becomes managed.
+    require(all(same(name, desired[name]) for name in (set(current) - set(old)) & set(desired)),
+            f'{label}: MCP name collision')
     for name in old:
         if name not in desired:
             text = jsonc_property(text, section, name, remove=True)
     for name, value in desired.items():
-        if current.get(name) != value:
+        if not same(name, value):
             text = jsonc_property(text, section, name, value)
-    expected = {key: value for key, value in current.items() if key not in old} | desired
+    expected = {key: value for key, value in current.items() if key not in old}
+    expected |= {name: current[name] if same(name, value) else value for name, value in desired.items()}
     require(read(text)[0] == expected, f'{label}: invalid JSONC result')
     return text.encode()
 
@@ -465,7 +504,8 @@ def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
     if fmt == 'opencode':
         return merge_opencode(text, old, desired)
     if fmt == 'vscode':
-        return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code')
+        # VS Code adds and updates these when a server comes from its MCP gallery.
+        return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code', {'gallery', 'version'})
     if fmt == 'toml':
         tomllib.loads(text)
         if text.count(BEGIN) == 0 and text.count(END) == 1:
@@ -543,6 +583,31 @@ def install_snapshot(path, value):
             path.symlink_to(content)
 
 
+def read_env(path):
+    """Read KEY=VALUE lines from the repository's .env. Errors never echo values."""
+    values = {}
+    if not path.is_file():
+        return values
+    for number, line in enumerate(path.read_text().splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        match = re.fullmatch(r'(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)', line)
+        require(match, f'{path}: line {number} is not KEY=VALUE')
+        value = match[2]
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+            value = value[1:-1]
+        # environment.d expands $ and backslashes, and these values must arrive unchanged.
+        require(re.fullmatch(r'[^\s$\\"\'`]*', value), f'{path}: {match[1]} holds characters environment.d would change')
+        values[match[1]] = value
+    return values
+
+
+def server_variables(server):
+    return set(server.get('requires_env', []) + server.get('env_vars', []) + list(server.get('header_env', {}).values())
+               + ([server['oauth']['client_secret_env']] if server.get('oauth', {}).get('client_secret_env') else []))
+
+
 def locations():
     home = Path.home()
     config = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'agents'
@@ -575,6 +640,7 @@ def prepare():
         for name, names in scoped_disabled.items()),
         'disabled_servers_by_harness must map harnesses to lists of names')
     servers = registry()
+    secrets = read_env(ROOT / '.env')
     previous = load_json(state_dir / 'managed.json', {'version': 1, 'mcp': {}, 'links': {}})
     require(previous.get('version') == 1, 'Unsupported adapter state')
     following = {'version': 1, 'mcp': {}, 'links': {}}
@@ -633,7 +699,7 @@ def prepare():
             for skill in sorted((ROOT / 'skills').iterdir()):
                 if (skill / 'SKILL.md').is_file() and skill.name not in plugin_skills:
                     link(base / 'skills' / skill.name, skill)
-        desired = {key: convert(server, name) for key, server in servers.items()
+        desired = {key: convert(server, name, secrets) for key, server in servers.items()
                    if key not in disabled and key not in scoped_disabled.get(name, [])
                    and name in server.get('harnesses', selected)}
         key = str(config_path)
@@ -648,26 +714,70 @@ def prepare():
         skills = [str(ROOT / 'skills' / skill / 'SKILL.md') for skill in adapter.get('plugin_skills', [])] if name == 'codex' else []
         old_skills = previous['mcp'].get(key, {}).get('skills', [])
         content = merge_mcp(config_path, adapter['format'], old, desired, old_skills, skills)
+        claude_secrets = {}
         for server in desired:
             oauth = servers[server].get('oauth', {})
             if 'client_secret_env' not in oauth:
                 continue
+            variable = oauth['client_secret_env']
             if name == 'codex' and not tomllib.loads(content.decode())['mcp_servers'][server].get('oauth', {}).get('client_secret'):
-                notices.append(f'Codex: outside the managed block in {config_path}, add a [mcp_servers.{server}.oauth] section '
-                               f'with client_id = "{oauth["client_id"]}" and client_secret, then run: codex mcp login {server}')
+                notices.append(f'Codex: put the client secret of {server} in ~/.agents/.env, or outside the managed block in {config_path} add a '
+                               f'[mcp_servers.{json.dumps(server)}.oauth] section with client_id = "{oauth["client_id"]}" '
+                               f'and client_secret, then run: codex mcp login {shlex.quote(server)}')
+            if name == 'vscode' and server not in old:
+                notices.append(f'VS Code: in {config_path} use Set Client Secret above oauth.clientId of {server} once on this computer')
             # Claude Code keeps the secret in its credential store; the plain-text store exists only on Linux.
-            if name == 'claude-code' and not any(entry.startswith(server + '|') for entry in
-                                                 load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
-                notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {server}; '
-                               f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
-                               f'{server} {servers[server]["url"]}; then run apply.sh again')
+            if name == 'claude-code' and variable in secrets and sys.platform == 'linux':
+                claude_secrets[claude_secret_key(server, desired[server])] = secrets[variable]
+            elif name == 'claude-code' and not any(entry.startswith(server + '|') for entry in
+                                                   load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
+                # The CLI accepts only letters, digits, - and _, while the configuration file takes any name.
+                if sys.platform == 'linux' or not re.fullmatch(r'[A-Za-z0-9_-]+', server):
+                    notices.append(f'Claude Code: put the client secret of {server} in ~/.agents/.env and run apply.sh again')
+                else:
+                    notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {server}; '
+                                   f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
+                                   f'{server} {servers[server]["url"]}; then run apply.sh again')
         before = snapshot(config_path)
         if before[0] != 'missing' or desired or skills:
             if before[1] != content:
                 changes[config_path] = (before, ('file', content, 0o600))
         following['mcp'][key] = {'format': adapter['format'], 'servers': desired}
+        if name == 'claude-code':
+            credentials = base / '.credentials.json'
+            owned_keys = previous.get('credentials', {}).get(str(credentials), [])
+            if claude_secrets or owned_keys:
+                change = merge_claude_secrets(credentials, owned_keys, claude_secrets)
+                if change:
+                    changes[credentials] = change
+            if claude_secrets:
+                following.setdefault('credentials', {})[str(credentials)] = sorted(claude_secrets)
         if skills:
             following['mcp'][key]['skills'] = skills
+
+    # GUI harnesses do not read .env; the systemd user session passes these variables to them.
+    exported = {name: secrets[name] for name in sorted(set().union(*map(server_variables, servers.values()))) if name in secrets}
+    env_file = Path(os.environ.get('XDG_CONFIG_HOME', home / '.config')) / 'environment.d/60-agents.conf'
+    owned = previous.get('env')
+    if owned and (owned != str(env_file) or not exported) and snapshot(Path(owned))[0] != 'missing':
+        changes[Path(owned)] = (snapshot(Path(owned)), ('missing', None, None))
+    if exported and sys.platform == 'linux':
+        before = snapshot(env_file)
+        require(before[0] == 'missing' or owned == str(env_file), f'{env_file}: foreign file; move its settings elsewhere')
+        content = ('# Managed by ~/.agents from its .env file. Edit .env and run apply.sh.\n'
+                   + ''.join(f'{name}={value}\n' for name, value in exported.items())).encode()
+        if before[1] != content:
+            changes[env_file] = (before, ('file', content, 0o600))
+            notices.append('Session environment: log out and back in so harnesses started from the desktop see ' + ', '.join(exported))
+        following['env'] = str(env_file)
+    elif exported:
+        notices.append('Set these variables from ~/.agents/.env in the harness environment: ' + ', '.join(exported))
+
+    for key, owned_keys in previous.get('credentials', {}).items():
+        if key not in following.get('credentials', {}):
+            change = merge_claude_secrets(Path(key), owned_keys, {})
+            if change:
+                changes[Path(key)] = change
 
     # Remove only entries whose ownership and current contents still match.
     for key, entry in previous['mcp'].items():
@@ -751,7 +861,8 @@ def doctor():
         for variable in sorted(set(server.get('requires_env', []) + server.get('env_vars', []) + referenced
                                    + list(server.get('header_env', {}).values()))):
             if not os.environ.get(variable):
-                problems.append(f'{name}: missing variable {variable}')
+                hint = '; it is in .env, so log out and back in' if variable in read_env(ROOT / '.env') else ''
+                problems.append(f'{name}: missing variable {variable}{hint}')
     for path in changes:
         problems.append(f'{path}: needs apply.sh')
     for skill in (ROOT / 'skills').iterdir():

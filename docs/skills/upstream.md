@@ -27,7 +27,7 @@ In Claude Code and Codex the installer also installs Ponytail as a plugin with t
 
 `pr` from `engineering/pr` sets the PR description content. The repository's own `create-pr` runs publishing and merging through the shared protocol, which `pr` reads when preparing a description.
 
-Codex and Claude Code install `modern-web-guidance@googlechrome` from the marketplaces in the pinned submodule. Their adapters suppress the shared skill copies. Cursor, OpenCode and VS Code use the directory symlinks. The skills use `npx` to fetch guidance, so they need Node.js, npm and network access.
+Claude Code installs `modern-web-guidance@googlechrome` from the marketplace in the pinned submodule. Codex installs `modern-web-guidance@agents` from `adapters/codex`, which points at the same submodule. Their adapters suppress the shared skill copies. Cursor, OpenCode and VS Code use the directory symlinks. The skills use `npx` to fetch guidance, so they need Node.js, npm and network access.
 
 From Matt's repository we do not expose tracker procedures, environment generators, training materials or experimental skills globally. We expose `tdd` for test-first work, and `codebase-design` for module design and as a reference for TDD. The user starts `retro` and `handoff`. Adding another skill requires checking its dependencies and justifying a separate use.
 

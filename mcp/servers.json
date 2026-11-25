@@ -1,26 +1,28 @@
 {
   "version": 1,
   "servers": {
-    "context7": {
+    "io.github.upstash/context7": {
       "transport": "http",
-      "url": "https://mcp.context7.com/mcp"
+      "url": "https://mcp.context7.com/mcp",
+      "header_env": {
+        "CONTEXT7_API_KEY": "CONTEXT7_API_KEY"
+      }
     },
-    "figma": {
+    "com.figma.mcp/mcp": {
       "transport": "http",
       "url": "https://mcp.figma.com/mcp"
     },
-    "google-sheets-official": {
+    "Google Sheets": {
       "transport": "http",
       "url": "https://sheetsmcp.googleapis.com/mcp/v1",
       "oauth": {
-        "client_id": "961980042533-jslgnh96s42bdbk0igb4q43agnmi2bv0.apps.googleusercontent.com",
-        "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET",
-        "scopes": [
-          "https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive.readonly"
-        ],
-        "auth_server_metadata_url": "https://accounts.google.com/.well-known/openid-configuration"
+        "client_id": "961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com",
+        "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET"
       }
+    },
+    "Userback": {
+      "transport": "http",
+      "url": "https://mcp.userback.io/v1/mcp/"
     },
     "openaiDeveloperDocs": {
       "transport": "http",
