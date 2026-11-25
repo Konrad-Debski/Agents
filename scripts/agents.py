@@ -606,7 +606,7 @@ def read_env(path):
     return values
 
 
-def secret_requests(servers):
+def variable_uses(servers):
     """Map each variable the registry refers to onto what it holds, so a person or an agent knows what to supply."""
     requests = {}
     for name, server in servers.items():
@@ -621,15 +621,15 @@ def secret_requests(servers):
     return requests
 
 
-def missing_secrets(servers):
+def missing_variables(servers):
     present = read_env(ROOT / '.env')
-    return {variable: uses for variable, uses in secret_requests(servers).items() if variable not in present}
+    return {variable: uses for variable, uses in variable_uses(servers).items() if variable not in present}
 
 
 def add_secrets(prompt):
     """List the variables missing from .env and, in a terminal with --prompt, ask for them without echoing."""
     path = ROOT / '.env'
-    missing = missing_secrets(registry())
+    missing = missing_variables(registry())
     if not missing:
         print(f'Secrets: {path} holds every variable the registry uses.')
         return
@@ -923,7 +923,7 @@ def doctor():
         result = subprocess.run(['systemctl', '--user', 'is-active', '--quiet', 'agents-sync.timer'], capture_output=True)
         print('Timer: ' + ('active' if result.returncode == 0 else 'inactive'))
     print('T3: uses the configuration of the harness it launches; check MCP in a new session. Integrations managed by T3 stay local.')
-    for variable, uses in missing_secrets(servers).items():
+    for variable, uses in missing_variables(servers).items():
         notices.append(f'Secret {variable} is missing in {ROOT / ".env"} ({"; ".join(uses)}); run: python3 ~/.agents/scripts/agents.py secrets --prompt')
     for line in notices + problems:
         print(line)
