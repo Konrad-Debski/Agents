@@ -26,6 +26,8 @@ class ApplyTests(unittest.TestCase):
         self.repo.mkdir(parents=True)
         for directory in ('scripts', 'adapters', 'mcp'):
             shutil.copytree(ROOT / directory, self.repo / directory, symlinks=True)
+        # A fixed registry keeps these tests independent of the servers we currently share.
+        shutil.copy(ROOT / 'tests/fixtures/servers.json', self.repo / 'mcp/servers.json')
         (self.repo / 'AGENTS.md').write_text('Shared instructions\n')
         skill = self.repo / 'skills/example'
         skill.mkdir(parents=True)
@@ -518,7 +520,7 @@ class ApplyTests(unittest.TestCase):
     def test_codex_and_claude_report_missing_local_oauth_secret(self):
         self.local(['codex', 'claude-code'])
         result = self.run_apply()
-        self.assertIn('[mcp_servers.google-sheets-official.oauth]', result.stdout)
+        self.assertIn('[mcp_servers."google-sheets-official".oauth]', result.stdout)
         self.assertIn('claude mcp add -s user', result.stdout)
         self.write('.claude/.credentials.json', '{"mcpOAuthClientConfig": {"google-sheets-official|0123": {"clientSecret": "x"}}}')
         self.assertNotIn('claude mcp add', self.run_apply().stdout)
@@ -801,6 +803,39 @@ class ApplyTests(unittest.TestCase):
         self.assertFalse((self.home / '.cursor/mcp.json').exists())
         self.assertEqual((self.home / '.agents/skills').resolve(), self.repo / 'skills')
         self.assertEqual(set(self.vscode_servers()), {'context7', 'figma', 'google-sheets-official'})
+
+    def test_shared_registry_uses_vscode_names_in_every_harness(self):
+        shutil.copy(ROOT / 'mcp/servers.json', self.repo / 'mcp/servers.json')
+        names = {'io.github.upstash/context7', 'com.figma.mcp/mcp', 'Google Sheets', 'Userback'}
+        client = '961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com'
+        mcp = self.config / 'Code/User/mcp.json'
+        mcp.parent.mkdir(parents=True)
+        # The entries VS Code wrote when they were installed by hand are taken over, not reported as collisions.
+        mcp.write_text('{\n  "servers": {\n    "Google Sheets": {"url": "https://sheetsmcp.googleapis.com/mcp/v1", '
+                       '"type": "http", "oauth": {"clientId": "' + client + '",},},\n'
+                       '    "io.github.upstash/context7": {"type": "http", "url": "https://mcp.context7.com/mcp",},\n'
+                       '    "com.figma.mcp/mcp": {"type": "http", "url": "https://mcp.figma.com/mcp", '
+                       '"gallery": "https://api.mcp.github.com", "version": "1.0.3",},\n  },\n}\n')
+        self.run_apply()
+        self.assertEqual(set(self.vscode_servers()), names)
+        # Gallery metadata stays with the entry, and a version update by VS Code is not a hand edit.
+        mcp.write_text(mcp.read_text().replace('"1.0.3"', '"1.0.4"'))
+        self.run_apply()
+        self.assertEqual(self.vscode_servers()['com.figma.mcp/mcp']['version'], '1.0.4')
+        self.assertEqual(self.vscode_servers()['Google Sheets']['oauth'], {'clientId': client})
+        self.assertEqual(set(json.loads((self.home / '.claude.json').read_text())['mcpServers']), names)
+        self.assertEqual(set(json.loads((self.home / '.cursor/mcp.json').read_text())['mcpServers']), names)
+        self.assertEqual(set(tomllib.loads((self.home / '.codex/config.toml').read_text())['mcp_servers']),
+                         names | {'openaiDeveloperDocs'})
+        self.assertEqual(set(json.loads((self.config / 'opencode/opencode.json').read_text())['mcp']['servers']), names)
+        self.run_apply(action='doctor')
+
+    def test_vscode_reports_a_different_hand_added_entry_as_collision(self):
+        self.local(['vscode'])
+        mcp = self.config / 'Code/User/mcp.json'
+        mcp.parent.mkdir(parents=True)
+        mcp.write_text(json.dumps({'servers': {'figma': {'type': 'http', 'url': 'https://personal.example/mcp'}}}))
+        self.assertIn('MCP name collision', self.run_apply(success=False).stderr)
 
     def test_native_skills_link_from_another_home_is_stable(self):
         self.local(['vscode'])

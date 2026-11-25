@@ -14,7 +14,7 @@ The optional file `${XDG_CONFIG_HOME:-~/.config}/agents/local.json` stays outsid
 
 A missing `harnesses` key means automatic detection. An empty list disables the integrations. Removing a harness from the explicit list removes only its previously managed entries and links. `disabled_servers` disables a server on a specific machine without changing the shared definition.
 
-`disabled_servers_by_harness` disables a shared entry only in the selected harnesses. For example, `{"vscode": ["context7"], "opencode": ["context7"]}` keeps your own Context7 HTTP servers with their authorization, without adding a second connection. It does not disable personal entries with other names. If you delete a managed JSON or JSONC entry by hand, `apply` recreates it as long as the registry and local settings still call for it.
+`disabled_servers_by_harness` disables a shared entry only in the selected harnesses. For example, `{"opencode": ["io.github.upstash/context7"]}` keeps your own Context7 HTTP server with its authorization, without adding a second connection. It does not disable personal entries with other names. If you delete a managed JSON or JSONC entry by hand, `apply` recreates it as long as the registry and local settings still call for it.
 
 Entry ownership state, the apply lock and local backups live in `${XDG_STATE_HOME:-~/.local/state}/agents`. Do not delete `managed.json` if you want existing entries to keep updating automatically. Losing the state makes the adapter report a collision instead of taking over someone else's configuration. Backups have `600` permissions and also hold the contents of replaced local files. Protect them the same way as the harness configuration.
 
@@ -22,13 +22,15 @@ Provide API keys in the environment of the launched harness. Variables set only 
 
 ## MCP definitions
 
-The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, and the public OpenAI documentation server. Figma logs in through OAuth separately in each harness and needs no secret. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
+The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, Google Sheets at `https://sheetsmcp.googleapis.com/mcp/v1`, the [Userback](https://docs.userback.io/docs/userback-mcp) server at `https://mcp.userback.io/v1/mcp/`, and the public OpenAI documentation server. Figma, Google Sheets and Userback log in through OAuth separately in each harness and need no secret in the registry. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
 
 The default Context7 configuration connects without an API key, so a missing authorization variable does not block MCP startup. A key gives [higher rate limits](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). You can keep your own authorized connections and disable the shared entry with `disabled_servers_by_harness`.
 
 To require authorization in the shared Context7 definition, add `"header_env": {"Authorization": "CONTEXT7_AUTHORIZATION"}` and set the `CONTEXT7_AUTHORIZATION` variable to the full value `Bearer <Context7 API key>`. The adapters write references to the environment, and `doctor` checks that the variable exists. The key value stays outside the repository.
 
-After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers. The `gallery` and `version` fields do not belong in the shared registry.
+After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers.
+
+Server names match the ones VS Code gives servers installed from its MCP gallery, such as `io.github.upstash/context7`, `com.figma.mcp/mcp` and `Google Sheets`. Claude Code, Codex and OpenCode accept the same names. When a harness already has an identical entry under that name, `apply` takes it over. A different entry is reported as a collision. In VS Code the comparison skips the `gallery` and `version` fields, so a gallery install and its updates stay managed. Do not put these fields in the registry.
 
 Format example:
 

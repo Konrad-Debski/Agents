@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -57,7 +58,8 @@ def registry():
     data = load_json(ROOT / 'mcp/servers.json')
     require(data.get('version') == 1 and isinstance(data.get('servers'), dict), 'Unsupported MCP registry')
     for name, server in data['servers'].items():
-        require(re.fullmatch(r'[A-Za-z0-9_-]+', name), f'Invalid MCP name: {name}')
+        # VS Code gallery names such as io.github.upstash/context7 work in every harness.
+        require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._/-]*', name), f'Invalid MCP name: {name}')
         require(isinstance(server, dict), f'{name}: a server definition is required')
         transport = server.get('transport')
         fields = {'transport', 'harnesses', 'requires_env'}
@@ -363,20 +365,28 @@ def vscode_servers(text):
     return servers, ('servers',)
 
 
-def merge_jsonc_servers(text, old, desired, read, label):
+def merge_jsonc_servers(text, old, desired, read, label, ignored=()):
     text = text if text.strip() else '{}\n'
     current, section = read(text)
+
+    def same(name, value):
+        entry = current.get(name)
+        return isinstance(entry, dict) and {k: v for k, v in entry.items() if k not in ignored} == value
+
     for name, value in old.items():
         if name in current:
-            require(current.get(name) == value, f'{label}: managed server {name} was changed by hand')
-    require(not ((set(current) - set(old)) & set(desired)), f'{label}: MCP name collision')
+            require(same(name, value), f'{label}: managed server {name} was changed by hand')
+    # An identical entry added by hand, for example from the VS Code gallery, becomes managed.
+    require(all(same(name, desired[name]) for name in (set(current) - set(old)) & set(desired)),
+            f'{label}: MCP name collision')
     for name in old:
         if name not in desired:
             text = jsonc_property(text, section, name, remove=True)
     for name, value in desired.items():
-        if current.get(name) != value:
+        if not same(name, value):
             text = jsonc_property(text, section, name, value)
-    expected = {key: value for key, value in current.items() if key not in old} | desired
+    expected = {key: value for key, value in current.items() if key not in old}
+    expected |= {name: current[name] if same(name, value) else value for name, value in desired.items()}
     require(read(text)[0] == expected, f'{label}: invalid JSONC result')
     return text.encode()
 
@@ -465,7 +475,8 @@ def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
     if fmt == 'opencode':
         return merge_opencode(text, old, desired)
     if fmt == 'vscode':
-        return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code')
+        # VS Code adds and updates these when a server comes from its MCP gallery.
+        return merge_jsonc_servers(text, old, desired, vscode_servers, 'VS Code', {'gallery', 'version'})
     if fmt == 'toml':
         tomllib.loads(text)
         if text.count(BEGIN) == 0 and text.count(END) == 1:
@@ -653,14 +664,14 @@ def prepare():
             if 'client_secret_env' not in oauth:
                 continue
             if name == 'codex' and not tomllib.loads(content.decode())['mcp_servers'][server].get('oauth', {}).get('client_secret'):
-                notices.append(f'Codex: outside the managed block in {config_path}, add a [mcp_servers.{server}.oauth] section '
-                               f'with client_id = "{oauth["client_id"]}" and client_secret, then run: codex mcp login {server}')
+                notices.append(f'Codex: outside the managed block in {config_path}, add a [mcp_servers.{json.dumps(server)}.oauth] section '
+                               f'with client_id = "{oauth["client_id"]}" and client_secret, then run: codex mcp login {shlex.quote(server)}')
             # Claude Code keeps the secret in its credential store; the plain-text store exists only on Linux.
             if name == 'claude-code' and not any(entry.startswith(server + '|') for entry in
                                                  load_json(base / '.credentials.json', {}).get('mcpOAuthClientConfig', {})):
-                notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {server}; '
+                notices.append(f'Claude Code: save the OAuth secret once per computer: claude mcp remove -s user {shlex.quote(server)}; '
                                f'claude mcp add -s user --transport http --client-id {oauth["client_id"]} --client-secret '
-                               f'{server} {servers[server]["url"]}; then run apply.sh again')
+                               f'{shlex.quote(server)} {servers[server]["url"]}; then run apply.sh again')
         before = snapshot(config_path)
         if before[0] != 'missing' or desired or skills:
             if before[1] != content:
