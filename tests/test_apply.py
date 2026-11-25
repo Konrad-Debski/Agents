@@ -527,6 +527,15 @@ class ApplyTests(unittest.TestCase):
         self.write('.claude/.credentials.json', '{"mcpOAuthClientConfig": {"google-sheets-official|0123": {"clientSecret": "x"}}}')
         self.assertNotIn('Claude Code:', self.run_apply().stdout)
 
+    def test_claude_json_keeps_the_format_claude_code_writes(self):
+        self.local(['claude-code'])
+        self.run_apply()
+        path = self.home / '.claude.json'
+        self.assertFalse(path.read_bytes().endswith(b'\n'))
+        # Claude Code writes the same JSON without a final newline, so doctor sees no change.
+        path.write_bytes((json.dumps(json.loads(path.read_text()), indent=2)).encode())
+        self.assertNotIn('needs apply.sh', self.run_apply(action='doctor').stdout)
+
     def test_claude_entry_reduced_by_cli_is_restored(self):
         self.local(['claude-code'])
         self.run_apply()
