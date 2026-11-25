@@ -24,8 +24,12 @@ if [[ -f "$modern_web/.claude-plugin/marketplace.json" ]] && command -v claude >
         claude plugin install modern-web-guidance@googlechrome; } ||
         printf 'The Modern Web Guidance plugin for Claude Code was not installed. See docs/skills/upstream.md.\n' >&2
 fi
-if [[ -f "$modern_web/.agents/plugins/marketplace.json" ]] && command -v codex >/dev/null; then
-    { codex plugin marketplace add "$modern_web" &&
-        codex plugin add modern-web-guidance@googlechrome; } ||
+if [[ -f "$modern_web/.codex-plugin/plugin.json" ]] && command -v codex >/dev/null; then
+    # Older installs registered the submodule as its own googlechrome marketplace; move them to ours.
+    if codex plugin marketplace list 2>/dev/null | grep -q '^googlechrome '; then
+        codex plugin remove modern-web-guidance@googlechrome >/dev/null 2>&1 || true
+        codex plugin marketplace remove googlechrome >/dev/null 2>&1 || true
+    fi
+    { codex plugin marketplace add "$repo_dir/adapters/codex" && codex plugin add modern-web-guidance@agents; } ||
         printf 'The Modern Web Guidance plugin for Codex was not installed. See docs/skills/upstream.md.\n' >&2
 fi
