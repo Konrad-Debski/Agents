@@ -550,7 +550,8 @@ def merge_mcp(path, fmt, old, desired, old_skills=(), skills=()):
     require(not (set(current) & set(desired)), f'{path}: MCP name collision')
     if current or desired or 'mcpServers' in data:
         data['mcpServers'] = {**current, **desired}
-    return json_bytes(data)
+    # Claude Code rewrites its file without a final newline; matching it keeps doctor from reporting a change.
+    return json_bytes(data).rstrip(b'\n')
 
 
 def atomic_write(path, content, mode=0o600):
