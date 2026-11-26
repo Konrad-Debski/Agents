@@ -22,11 +22,11 @@ Keep API keys in `~/.agents/.env` as `NAME=value` lines and give the file `600` 
 
 ## MCP definitions
 
-The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, Google Sheets at `https://sheetsmcp.googleapis.com/mcp/v1`, the [Userback](https://docs.userback.io/docs/userback-mcp) server at `https://mcp.userback.io/v1/mcp/`, and the public OpenAI documentation server. Figma, Google Sheets and Userback log in through OAuth separately in each harness. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
+The registry includes the remote Context7 server at `https://mcp.context7.com/mcp`, the Figma server at `https://mcp.figma.com/mcp`, Google Sheets at `https://sheetsmcp.googleapis.com/mcp/v1`, Google Docs at `https://docsmcp.googleapis.com/mcp/v1`, Google Drive at `https://drivemcp.googleapis.com/mcp/v1`, the [Userback](https://docs.userback.io/docs/userback-mcp) server at `https://mcp.userback.io/v1/mcp/`, and the public OpenAI documentation server. Figma, the Google servers and Userback log in through OAuth separately in each harness. The OpenAI server is assigned only to Codex (`"harnesses": ["codex"]`). Context7 uses Streamable HTTP and needs no local Node.js or `npx`. Add other MCP servers to `mcp/servers.json` after moving their secrets into the environment.
 
 Context7 sends its API key in the `CONTEXT7_API_KEY` header (`"header_env": {"CONTEXT7_API_KEY": "CONTEXT7_API_KEY"}`), which gives [higher rate limits](https://github.com/upstash/context7/blob/master/docs/resources/troubleshooting.mdx). Put `CONTEXT7_API_KEY=<key>` in `~/.agents/.env`. The adapters write references to the variable, and `doctor` reports it when the harness environment lacks it.
 
-Google Sheets uses a pre-registered OAuth client, so its secret goes into `~/.agents/.env` as `GOOGLE_SHEETS_MCP_CLIENT_SECRET=<secret>`, and the registry names the variable in `oauth.client_secret_env`. Harnesses take it differently:
+Google Sheets, Docs and Drive share one pre-registered OAuth client, so its secret goes into `~/.agents/.env` as `GOOGLE_SHEETS_MCP_CLIENT_SECRET=<secret>`, and the registry names the variable in `oauth.client_secret_env`. Harnesses take it differently:
 
 - OpenCode and Cursor get a reference to the variable.
 - Codex accepts only the value, so `apply` writes it into the managed `oauth` table in `config.toml`. `managed.json` holds it too, so both files keep `600` permissions. Without the value in `.env`, `apply` leaves the `oauth` table local and prints how to add it.
@@ -35,7 +35,7 @@ Google Sheets uses a pre-registered OAuth client, so its secret goes into `~/.ag
 
 After changing the registry, run `bash ~/.agents/scripts/apply.sh`. The adapters update the managed entries and keep personal servers.
 
-Server names match the ones VS Code gives servers installed from its MCP gallery, such as `io.github.upstash/context7` and `com.figma.mcp/mcp`. Claude Code, Codex and OpenCode accept the same names in their configuration files. Google Sheets is `Google-Sheets`, because the `claude mcp` CLI accepts only letters, digits, `-` and `_`. When a harness already has an identical entry under that name, `apply` takes it over. A different entry is reported as a collision. In VS Code the comparison skips the `gallery` and `version` fields, so a gallery install and its updates stay managed. Do not put these fields in the registry.
+Server names match the ones VS Code gives servers installed from its MCP gallery, such as `io.github.upstash/context7` and `com.figma.mcp/mcp`. Claude Code, Codex and OpenCode accept the same names in their configuration files. The Google servers are `Google-Sheets`, `Google-Docs` and `Google-Drive`, because the `claude mcp` CLI accepts only letters, digits, `-` and `_`. When a harness already has an identical entry under that name, `apply` takes it over. A different entry is reported as a collision. In VS Code the comparison skips the `gallery` and `version` fields, so a gallery install and its updates stay managed. Do not put these fields in the registry.
 
 Format example:
 
