@@ -20,6 +20,22 @@
         "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET"
       }
     },
+    "Google-Docs": {
+      "transport": "http",
+      "url": "https://docsmcp.googleapis.com/mcp/v1",
+      "oauth": {
+        "client_id": "961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com",
+        "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET"
+      }
+    },
+    "Google-Drive": {
+      "transport": "http",
+      "url": "https://drivemcp.googleapis.com/mcp/v1",
+      "oauth": {
+        "client_id": "961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com",
+        "client_secret_env": "GOOGLE_SHEETS_MCP_CLIENT_SECRET"
+      }
+    },
     "Userback": {
       "transport": "http",
       "url": "https://mcp.userback.io/v1/mcp/"
