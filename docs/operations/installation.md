@@ -12,14 +12,14 @@ bash "$HOME/.agents/install.sh"
 bash "$HOME/.agents/scripts/doctor.sh"
 ```
 
-Secrets are not in Git, so before applying the configuration the installer lists the variables the registry uses and asks for the ones missing from `~/.agents/.env`. Typing is hidden, and Enter skips a value. Keep them in a password manager: currently `CONTEXT7_API_KEY` (Context7 API key) and `GOOGLE_SHEETS_MCP_CLIENT_SECRET` (secret of the Google Sheets OAuth client). Without a terminal, for example when an agent runs the installer, it only prints what is missing and how to add it. Ask the user for those values; do not invent or skip them. Add them later with:
+Secrets are not in Git, so before applying the configuration the installer lists the variables the registry uses and asks for the ones missing from `~/.agents/.env`. Typing is hidden, and Enter skips a value. Keep them in a password manager: currently `CONTEXT7_API_KEY` (Context7 API key) and `GOOGLE_SHEETS_MCP_CLIENT_SECRET` (secret of the OAuth client shared by Google Sheets, Docs and Drive). Without a terminal, for example when an agent runs the installer, it only prints what is missing and how to add it. Ask the user for those values; do not invent or skip them. Add them later with:
 
 ```bash
 python3 "$HOME/.agents/scripts/agents.py" secrets --prompt
 bash "$HOME/.agents/scripts/apply.sh"
 ```
 
-Then log out and back in, so the desktop session sees the variables. In VS Code, set the Google Sheets secret once with **Set Client Secret** in `mcp.json`.
+Then log out and back in, so the desktop session sees the variables. In VS Code, set the client secret once for each Google server with **Set Client Secret** in `mcp.json`.
 
 The installer detects harnesses by their directories or by their programs in `PATH`. It creates the configuration and starts `agents-sync.timer`. When `claude` or `codex` is in `PATH`, it also installs the [Ponytail and Modern Web Guidance plugins](../skills/upstream.md) there. Claude Code also gets the PHP and TypeScript [LSP plugins](../integrations/claude-code.md). Running the command again updates the installation without duplicates. Moving the repository requires a reinstall. With existing collisions, first merge your own instructions or give the local MCP server a different name. The installer does not replace a different instructions file or a foreign symlink.
 

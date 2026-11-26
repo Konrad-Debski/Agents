@@ -818,7 +818,7 @@ class ApplyTests(unittest.TestCase):
 
     def test_shared_registry_uses_vscode_names_in_every_harness(self):
         shutil.copy(ROOT / 'mcp/servers.json', self.repo / 'mcp/servers.json')
-        names = {'io.github.upstash/context7', 'com.figma.mcp/mcp', 'Google-Sheets', 'Userback'}
+        names = {'io.github.upstash/context7', 'com.figma.mcp/mcp', 'Google-Sheets', 'Google-Docs', 'Google-Drive', 'Userback'}
         client = '961980042533-u8mflrgq4qctsq32q4dl14q1r6fppkue.apps.googleusercontent.com'
         mcp = self.config / 'Code/User/mcp.json'
         mcp.parent.mkdir(parents=True)
